@@ -37,3 +37,18 @@ train(next_bblock, bb1, bb2)
 for k, v in pairs(next_bblock) do
    print(string.format("%08x -> %08x", k, v))
 end
+
+local trace = assert(io.open("trace.bb", "r"))
+
+local i, j = trace:read("*number", "*number")
+while j do
+   local bbi = get_bblock(mem, i)
+   local bbj = get_bblock(mem, j)
+   train(next_bblock, bbi, bbj)
+   i = j
+   j = trace:read("*number")
+end 
+
+for k, v in pairs(next_bblock) do
+   print(string.format("0x%08x -> 0x%08x", k, v))
+end
