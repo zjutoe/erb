@@ -57,24 +57,26 @@ function is_branch(inst)
 end
 
 -- branch prediction
+-- inst: must be a branch or jump instruction
 function bpredict(inst)
+   
    return nil
 end
 
 -- form a basic block
 -- 
 function get_bblock(mem, addr)
+   local blk = {}
+   blk.addr = addr
+
    local inst = mem:rd(addr)
    while not is_branch(inst) do
       addr = addr + 4
       inst = mem:rd(addr)
    end
-
-   local target = bpredict(inst)
-   local blk = {}
-   blk.addr = addr
    blk.tail = addr + 4		-- include the delay slot
-   blk.target = target		-- next bblock
+   
+   blk.target = bpredict(inst)	-- next bblock
 
    return blk
 end
