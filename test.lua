@@ -18,12 +18,12 @@ end
 
 dofile("bblock.lua")
 
-local bb0 = get_bblock(mem, 0x400220)
-local bb1 = get_bblock(mem, 0x40022c)
-local bb2 = get_bblock(mem, 0x400430)
-print(string.format("%08x - %08x", bb0.addr, tonumber(bb0.tail)))
-print(string.format("%08x - %08x", bb1.addr, tonumber(bb1.tail)))
-print(string.format("%08x - %08x", bb2.addr, tonumber(bb2.tail)))
+-- local bb0 = get_bblock(mem, 0x400220)
+-- local bb1 = get_bblock(mem, 0x40022c)
+-- local bb2 = get_bblock(mem, 0x400430)
+-- print(string.format("%08x - %08x", bb0.addr, tonumber(bb0.tail)))
+-- print(string.format("%08x - %08x", bb1.addr, tonumber(bb1.tail)))
+-- print(string.format("%08x - %08x", bb2.addr, tonumber(bb2.tail)))
 
 local next_bblock = {}
 
@@ -31,14 +31,14 @@ function train(next_bblock, b0, b1)
    next_bblock[b0.addr] = b1.addr
 end
 
-train(next_bblock, bb0, bb1)
-train(next_bblock, bb1, bb2)
+--train(next_bblock, bb0, bb1)
+--train(next_bblock, bb1, bb2)
 
-for k, v in pairs(next_bblock) do
-   print(string.format("%08x -> %08x", k, v))
-end
+-- for k, v in pairs(next_bblock) do
+--    print(string.format("%08x -> %08x", k, v))
+-- end
 
-local trace = assert(io.open("trace.bb", "r"))
+local trace = assert(io.open(arg[2], "r"))
 
 local i, j = trace:read("*number", "*number")
 while j do
