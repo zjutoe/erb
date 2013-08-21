@@ -15,10 +15,6 @@
 -- commit_bb()
 -- 1. commit the reg/mem write
 
-function next_bb_to_try()
-   
-end
-
 function main_loop()
    local f_bb_log = io.input("qemu_bb.log")
    local lines = f_bb_log:read("*all")
@@ -30,31 +26,33 @@ function main_loop()
       if h == nil then break end
       local bb = qemu_bb(lines, h, t)
 
-      local bb2 = elf_bb(elf, h, t)
-      local cpu = idle_cpu()
-      while cpu do
-	 cpu:try(bb2)
-	 bb2 = elf_bb(elf, 
-	 cpu = idle_cpu()
+      local num = idle_cpu_num()
+      if num > 0 then
+	 -- get num consective BB's from elf
+	 local bbs = elf_bbs(elf, h, num)
+	 local cpus = idle_cpus()
+	 -- TODO should have a better schedule algorithm
+	 for i, v in ipairs(cpus) do
+	    v:try(bbs[i])
+	 end
       end
-      
-      -- print(lines:sub(h, h+12))
-      local ins = insts_ld(lines, h, t-3)
-      addrs_ld(ins)
-   end
-   
 
-      while idle_cpus() > 0 then
-	 try_bb()
+      -- enumerate the active BB's sequentially (following the
+      -- original semantic)
+      local abbs = active_bbs()
+      local clk = abbs[1].len
+      for i, v in ipairs(abbs) do
+	 local c = v.cpu
+	 if c:verify() then
+	    if c.clk <= clk then
+	       c:commit()
+	    end
+	 else
+	    c:discard()
+	 end
       end
-      proceed_cpus()
-      local bb = bb_from_leading_cpu()
-      local spec = verify_bb(bb)
-      if spec == false then      
-	 -- speculation failed
-	 try_bb(bb)		-- ?
-      end
-      commit_bb(bb)
+
+   end				-- while true
 
 end
 
