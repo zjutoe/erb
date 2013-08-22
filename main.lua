@@ -15,18 +15,48 @@
 -- commit_bb()
 -- 1. commit the reg/mem write
 
+
+function idle_cpu_num(CPU)
+   local n = 0
+   for i, v in ipairs(CPU) do
+      if not v.busy then n = n + 1 end
+   end
+   return n
+end
+
+
+
+function init_cpus(num)
+   local CPU = {}
+
+   for i=1, num do
+      local c = {}
+      c.id = i
+      c.busy = false
+      
+      CPU[i] = c
+   end
+
+   return CPU
+end
+
+
+function elf_bbs(elf, h, num)
+   
+end
+
+
 function main_loop()
+
+   local CPU = init_cpus(4)
+
    local f_bb_log = io.input("qemu_bb.log")
    local lines = f_bb_log:read("*all")
    bbpattern = "pc=.-pc="
    local h
    local t = 4
    while true do
-      h, t = lines:find(bbpattern, t-3)
-      if h == nil then break end
-      local bb = qemu_bb(lines, h, t)
-
-      local num = idle_cpu_num()
+      local num = idle_cpu_num(CPU)
       if num > 0 then
 	 -- get num consective BB's from elf
 	 local bbs = elf_bbs(elf, h, num)
@@ -42,8 +72,13 @@ function main_loop()
       local abbs = active_bbs()
       local clk = abbs[1].len
       for i, v in ipairs(abbs) do
+	 -- to follow the real trace, agaist which we should verify the CPUs
+	 h, t = lines:find(bbpattern, t-3)
+	 if h == nil then break end
+	 local bb = qemu_bb(lines, h, t)
+
 	 local c = v.cpu
-	 if c:verify() then
+	 if c:verify(bb) then
 	    if c.clk <= clk then
 	       c:commit()
 	    end
@@ -51,8 +86,7 @@ function main_loop()
 	    c:discard()
 	 end
       end
-
-   end				-- while true
+   end	-- while true
 
 end
 

@@ -1,7 +1,3 @@
-local loadelf = require 'luaelf/loadelf'
-local bit = require "bit"
-local elf = loadelf.init()
-local mem = elf.load(arg[1])
 
 function mem.rd(self, addr)
    local v0 = self[addr]   or 0

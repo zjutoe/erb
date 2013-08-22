@@ -1,5 +1,18 @@
 local bit = require("bit")
 
+module(...)
+
+locam _m = {}
+
+function init()
+   local _m = {}
+   for k, v in pairs(_m) do
+      _m[k] = v
+   end
+
+   return _m
+end
+
 -- d[i:j]
 function bit.sub(d, i, j)
    return bit.rshift(bit.lshift(d, 31-i), 31-i+j)
@@ -70,7 +83,7 @@ function get_bblock(mem, addr)
    blk.addr = addr
 
    local inst = mem:rd(addr)
-   while not is_branch(inst) do
+   while inst and not is_branch(inst) do
       addr = addr + 4
       inst = mem:rd(addr)
    end
@@ -80,3 +93,39 @@ function get_bblock(mem, addr)
 
    return blk
 end
+
+function get_bblocks(mem, addr, num)
+   local i
+   local bbs = {}
+   local h = addr
+   for i=1, num do
+      local b = get_bblock(mem, h)
+      if b then
+	 h = b.tail + 4		-- now we don't have branch prediction, just fall through
+	 bbs[i] = b
+      else
+	 break
+      end
+   end
+
+   return bbs
+end
+
+function test(fbin)
+   local loadelf = require 'luaelf/loadelf'
+   local elf = loadelf.init()
+   local mem = elf.load(fbin)
+
+   local bbs = get_bblocks(mem, mem.e_entry, 3)
+   for k, v in pairs(bbs) do
+      print(string.format("%x %x", v.addr, v.tail))
+   end
+
+   local bbs = get_bblocks(mem, 0x00400430, 3)
+   for k, v in pairs(bbs) do
+      print(string.format("%x %x", v.addr, v.tail))
+   end
+
+end
+
+-- test(arg[1])
