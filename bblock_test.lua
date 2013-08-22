@@ -1,4 +1,4 @@
-require("bblock")
+local bblock = require("bblock")
 
 local bblk = bblock.init()
 

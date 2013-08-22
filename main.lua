@@ -25,7 +25,6 @@ function idle_cpu_num(CPU)
 end
 
 
-
 function init_cpus(num)
    local CPU = {}
 
@@ -46,20 +45,29 @@ function elf_bbs(elf, h, num)
 end
 
 
-function main_loop()
-
+function main_loop(felf, qemu_bb_log)
+   -- init CPUs
    local CPU = init_cpus(4)
+   
+   -- init the elf loader and bblock parser
+   local loadelf = require 'luaelf/loadelf'
+   local elf = loadelf.init()
+   local mem = elf.load(felf)
+   local bblock = require ("bblock")
+   local bblk = bblock.init()
+   local next_bb_addr = mem.e_entry	-- the execution entry address
 
-   local f_bb_log = io.input("qemu_bb.log")
+   local f_bb_log = io.input(qemu_bb_log)
    local lines = f_bb_log:read("*all")
    bbpattern = "pc=.-pc="
    local h
-   local t = 4
+   local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
+
    while true do
       local num = idle_cpu_num(CPU)
       if num > 0 then
 	 -- get num consective BB's from elf
-	 local bbs = elf_bbs(elf, h, num)
+	 local bbs = bblk.get_bblocks(mem, next_bb_addr, num)
 	 local cpus = idle_cpus()
 	 -- TODO should have a better schedule algorithm
 	 for i, v in ipairs(cpus) do
@@ -86,6 +94,8 @@ function main_loop()
 	    c:discard()
 	 end
       end
+
+      next_bb_addr = tonumber(lines:sub(h+3, h+12))
    end	-- while true
 
 end
