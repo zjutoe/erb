@@ -1,16 +1,17 @@
+local pairs = pairs
 local bit = require("bit")
+
 
 module(...)
 
-locam _m = {}
+local _m = {}
 
 function init()
-   local _m = {}
+   local m = {}
    for k, v in pairs(_m) do
-      _m[k] = v
+      m[k] = v
    end
-
-   return _m
+   return m
 end
 
 -- d[i:j]
@@ -71,14 +72,13 @@ end
 
 -- branch prediction
 -- inst: must be a branch or jump instruction
-function bpredict(inst)
-   
+function bpredict(self, inst)   
    return nil
 end
 
 -- form a basic block
 -- 
-function get_bblock(mem, addr)
+function bblock(mem, addr)
    local blk = {}
    blk.addr = addr
 
@@ -94,12 +94,12 @@ function get_bblock(mem, addr)
    return blk
 end
 
-function get_bblocks(mem, addr, num)
+function _m.get_bblocks(mem, addr, num)
    local i
    local bbs = {}
    local h = addr
    for i=1, num do
-      local b = get_bblock(mem, h)
+      local b = bblock(mem, h)
       if b then
 	 h = b.tail + 4		-- now we don't have branch prediction, just fall through
 	 bbs[i] = b
@@ -111,21 +111,3 @@ function get_bblocks(mem, addr, num)
    return bbs
 end
 
-function test(fbin)
-   local loadelf = require 'luaelf/loadelf'
-   local elf = loadelf.init()
-   local mem = elf.load(fbin)
-
-   local bbs = get_bblocks(mem, mem.e_entry, 3)
-   for k, v in pairs(bbs) do
-      print(string.format("%x %x", v.addr, v.tail))
-   end
-
-   local bbs = get_bblocks(mem, 0x00400430, 3)
-   for k, v in pairs(bbs) do
-      print(string.format("%x %x", v.addr, v.tail))
-   end
-
-end
-
--- test(arg[1])
