@@ -16,29 +16,6 @@
 -- 1. commit the reg/mem write
 
 
-function idle_cpu_num(CPU)
-   local n = 0
-   for i, v in ipairs(CPU) do
-      if not v.busy then n = n + 1 end
-   end
-   return n
-end
-
-
-function init_cpus(num)
-   local CPU = {}
-
-   for i=1, num do
-      local c = {}
-      c.id = i
-      c.busy = false
-      
-      CPU[i] = c
-   end
-
-   return CPU
-end
-
 
 function elf_bbs(elf, h, num)
    
@@ -47,7 +24,8 @@ end
 
 function main_loop(felf, qemu_bb_log)
    -- init CPUs
-   local CPU = init_cpus(4)
+   local cpu = require 'cpu.lua'
+   local CPU = cpu.init(4)
    
    -- init the elf loader and bblock parser
    local loadelf = require 'luaelf/loadelf'
@@ -64,11 +42,10 @@ function main_loop(felf, qemu_bb_log)
    local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
 
    while true do
-      local num = idle_cpu_num(CPU)
-      if num > 0 then
+      local cpus = CPU:idle_cpus()
+      if cpus then
 	 -- get num consective BB's from elf
-	 local bbs = bblk.get_bblocks(mem, next_bb_addr, num)
-	 local cpus = idle_cpus()
+	 local bbs = bblk.get_bblocks(mem, next_bb_addr, #cpus)
 	 -- TODO should have a better schedule algorithm
 	 for i, v in ipairs(cpus) do
 	    v:try(bbs[i])
