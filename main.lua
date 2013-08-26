@@ -41,6 +41,9 @@ function main_loop(felf, qemu_bb_log)
    local h
    local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
 
+   local List = require('list')
+   local active_cpus = List.init()
+   
    while true do
       local cpus = CPU:idle_cpus()
       if cpus then
@@ -49,7 +52,25 @@ function main_loop(felf, qemu_bb_log)
 	 -- TODO should have a better schedule algorithm
 	 for i, v in ipairs(cpus) do
 	    v:try(bbs[i])
+	    active_cpus:pushright(v.id)
 	 end
+      end
+
+      local cid = active_cpus:popleft()
+      while cid do
+	 -- to follow the real trace, agaist which we should verify the CPUs
+	 h, t = lines:find(bbpattern, t-3)
+	 if h == nil then break end
+
+	 -- TODO the mem wr insts and their addrs, record them
+	 -- TODO the mem rd insts and their addrs, verify them with previously recorded mem wr
+	 local rd_insts, wr_insts = rd_wr_insts(lines:sub(h, t))
+
+	 -- TODO implement a mem wr queue, from which the rd could be short-cut
+
+	 -- TODO if all rd is valid, commit the BB in this CPU (id==cid)
+	 
+	 cid = active_cpus:popleft()
       end
 
       -- enumerate the active BB's sequentially (following the
