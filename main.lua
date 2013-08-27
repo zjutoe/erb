@@ -1,3 +1,10 @@
+local bit = require("bit")
+
+function bit.sub(d, i, j)
+   return bit.rshift(bit.lshift(d, 31-i), 31-i+j)
+end
+
+
 -- main loop logic:
 
 -- try_bb()
@@ -19,6 +26,52 @@
 
 function elf_bbs(elf, h, num)
    
+end
+
+local is_ld_op = {
+   [0x20]  = true, -- do_lb,		-- load byte  
+   [0x24]  = true, -- do_lbu,		-- load byte unsigned  
+   [0x21]  = true, -- do_lh,		--   
+   [0x25]  = true, -- do_lhu,		--   
+   [0x0F]  = true, -- do_lui,		-- load upper immediate  
+   [0x23]  = true, -- do_lw,		-- load word  
+   [0x31]  = true, -- do_LWC1,		-- load word  to Float Point TODO ...
+}
+
+function is_rd_inst(inst)
+   local op = bit.sub(inst, 31, 26)
+   -- if is_ld_op[op] then return true else return false end
+   return is_ld_op[op] and true or false
+end
+
+
+local is_wr_op = {
+   [0x28]  = true, -- do_sb,		-- store byte  
+   [0x29]  = true, -- do_sh,		--   
+   [0x2B]  = true, -- do_sw,		-- store word  
+   [0x39]  = true, -- do_SWC1,		-- store word with Float Point TODO ...
+}
+
+function is_wr_inst(inst)
+   local op = bit.sub(inst, 31, 26)
+   -- if is_ld_op[op] then return true else return false end
+   return is_wr_op[op] and true or false
+end
+
+function rd_wr_insts(bblock)
+   local rd = {}
+   local wr = {}
+   ipattern = "\n0x%x%x%x%x%x%x%x%x:"
+   for inst in bblock:gmatch(ipattern) do
+      local i = tonumber(inst)
+      if is_rd_inst(i) then
+	 rd[#rd+1] = i
+      elseif is_wr_inst(inst) then
+	 wr[#wr+1] = i
+      end
+   end
+
+   return rd, wr
 end
 
 
