@@ -38,40 +38,40 @@ local is_ld_op = {
    [0x31]  = true, -- do_LWC1,		-- load word  to Float Point TODO ...
 }
 
-function is_rd_inst(inst)
+function is_ld_inst(inst)
    local op = bit.sub(inst, 31, 26)
    -- if is_ld_op[op] then return true else return false end
    return is_ld_op[op] and true or false
 end
 
 
-local is_wr_op = {
+local is_st_op = {
    [0x28]  = true, -- do_sb,		-- store byte  
    [0x29]  = true, -- do_sh,		--   
    [0x2B]  = true, -- do_sw,		-- store word  
    [0x39]  = true, -- do_SWC1,		-- store word with Float Point TODO ...
 }
 
-function is_wr_inst(inst)
+function is_st_inst(inst)
    local op = bit.sub(inst, 31, 26)
    -- if is_ld_op[op] then return true else return false end
-   return is_wr_op[op] and true or false
+   return is_st_op[op] and true or false
 end
 
-function rd_wr_insts(bblock)
-   local rd = {}
-   local wr = {}
+function ld_st_insts(bblock)
+   local ld = {}
+   local st = {}
    ipattern = "\n0x%x%x%x%x%x%x%x%x:"
    for inst in bblock:gmatch(ipattern) do
       local i = tonumber(inst)
-      if is_rd_inst(i) then
-	 rd[#rd+1] = i
-      elseif is_wr_inst(inst) then
-	 wr[#wr+1] = i
+      if is_ld_inst(i) then
+	 ld[#ld+1] = i
+      elseif is_st_inst(inst) then
+	 st[#st+1] = i
       end
    end
 
-   return rd, wr
+   return ld, st
 end
 
 
@@ -117,11 +117,27 @@ function main_loop(felf, qemu_bb_log)
 
 	 -- TODO the mem wr insts and their addrs, record them
 	 -- TODO the mem rd insts and their addrs, verify them with previously recorded mem wr
-	 local rd_insts, wr_insts = rd_wr_insts(lines:sub(h, t))
+	 local ld_insts, st_insts = ld_st_insts(lines:sub(h, t))
 
 	 -- TODO implement a mem wr queue, from which the rd could be short-cut
 
 	 -- TODO if all rd is valid, commit the BB in this CPU (id==cid)
+	 local invalid = false
+	 for k, v in ipairs(ld_insts) do
+	    local addr = ld_addr(v)
+	    if pending_st[addr] then
+	       invalid = true
+	    end
+	 end
+	 if invalid then
+	    rollback(cid)
+	 else
+	    for k, v in ipairs(st_insts) do
+	       local addr = st_addr(v)
+	       pending_st[addr] = true
+	    end
+	    -- TODO record the clocks of thie bblock
+	 end
 	 
 	 cid = active_cpus:popleft()
       end
