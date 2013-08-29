@@ -139,6 +139,14 @@ function main_loop(felf, qemu_bb_log)
 	    break
 	 end
 
+	 -- TODO: 1. validate the register reads; 2. validate the
+	 -- memory reads. If the register reads are all correct, then
+	 -- the memory read addresses are correct, upon which we only
+	 -- need to worry about the memory read value, i.e. just need
+	 -- to worry about RAW confliction. In a word, if 1 fails,
+	 -- then the speculation fails, otherwise we continue to check
+	 -- 2.
+
 	 --[[ FIXME temprarily disable the block below
 	 -- TODO the mem wr insts and their addrs, record them
 	 -- TODO the mem rd insts and their addrs, verify them with previously recorded mem wr
