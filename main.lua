@@ -77,7 +77,7 @@ end
 
 function main_loop(felf, qemu_bb_log)
    -- init CPUs
-   local cpu = require 'cpu.lua'
+   local cpu = require 'cpu'
    local CPU = cpu.init(4)
    
    -- init the elf loader and bblock parser
@@ -99,22 +99,47 @@ function main_loop(felf, qemu_bb_log)
    
    while true do
       local cpus = CPU:idle_cpus()
+      print(#cpus, "CPUs are idle")
       if cpus then
 	 -- get num consective BB's from elf
 	 local bbs = bblk.get_bblocks(mem, next_bb_addr, #cpus)
 	 -- TODO should have a better schedule algorithm
 	 for i, v in ipairs(cpus) do
-	    v:try(bbs[i])
-	    active_cpus:pushright(v.id)
+	    print('cpu', v, 'bblock', string.format("0x%x", bbs[i].addr))
+	    CPU:try(v, bbs[i])
+	    active_cpus:pushright(v)
 	 end
       end
 
+      local steer = false
       local cid = active_cpus:popleft()
       while cid do
 	 -- to follow the real trace, agaist which we should verify the CPUs
+	 local h0, t0 = h, t
 	 h, t = lines:find(bbpattern, t-3)
 	 if h == nil then break end
+	 local addr = tonumber(lines:sub(h+3, h+12))
+	 print('validating', string.format("0x%x", addr))
+	 
+	 local bblk = CPU[cid].run
+	 
+	 if addr ~= bblk.addr then	    
+	    -- the speculation went a wrong direction
+	    next_bb_addr = tonumber(lines:sub(h+3, h+12)) -- steer to the right direction
+	    steer = true
+	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
 
+	    h, t = h0, t0	-- backoff the trace for 1 bblock
+	    CPU[cid].busy = false -- directly discard the bblock in the cpu
+	    cid = active_cpus:popleft()
+	    while cid do
+	       CPU[cid].busy = false -- directly discard the bblock in the cpu
+	       cid = active_cpus:popleft()
+	    end
+	    break
+	 end
+
+	 --[[ FIXME temprarily disable the block below
 	 -- TODO the mem wr insts and their addrs, record them
 	 -- TODO the mem rd insts and their addrs, verify them with previously recorded mem wr
 	 local ld_insts, st_insts = ld_st_insts(lines:sub(h, t))
@@ -138,33 +163,15 @@ function main_loop(felf, qemu_bb_log)
 	    end
 	    -- TODO record the clocks of thie bblock
 	 end
+	 --]]
 	 
 	 cid = active_cpus:popleft()
-      end
+      end  -- while cid
 
-      -- enumerate the active BB's sequentially (following the
-      -- original semantic)
-      local abbs = active_bbs()
-      local clk = abbs[1].len
-      for i, v in ipairs(abbs) do
-	 -- to follow the real trace, agaist which we should verify the CPUs
-	 h, t = lines:find(bbpattern, t-3)
-	 if h == nil then break end
-	 local bb = qemu_bb(lines, h, t)
-
-	 local c = v.cpu
-	 if c:verify(bb) then
-	    if c.clk <= clk then
-	       c:commit()
-	    end
-	 else
-	    c:discard()
-	 end
-      end
-
-      next_bb_addr = tonumber(lines:sub(h+3, h+12))
+      if not steer then next_bb_addr = tonumber(lines:sub(h+3, h+12)) end
    end	-- while true
 
 end
 
-main_loop()
+main_loop(arg[1], arg[2])
+

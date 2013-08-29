@@ -30,7 +30,7 @@ end
     
 function _m.popleft (self)
    local first = self.first
-   if first > self.last then error("self is empty") end
+   if first > self.last then return nil end
    local value = self[first]
    self[first] = nil        -- to allow garbage collection
    self.first = first + 1
@@ -39,10 +39,17 @@ end
     
 function _m.popright (self)
    local last = self.last
-   if self.first > last then error("self is empty") end
+   if self.first > last then return nil end
    local value = self[last]
    self[last] = nil         -- to allow garbage collection
    self.last = last - 1
    return value
 end
 
+function _m.clearright(self)
+   self.last = self.first - 1
+end
+
+function _m.clearleft(self)
+   self.first = self.last + 1
+end

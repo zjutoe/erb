@@ -26,13 +26,13 @@ function _m.idle_cpus(self)
    local cpus = {}
    for i, v in ipairs(self) do
       if not v.busy then 
-	 cpus[#cpus + 1] = v 
+	 cpus[#cpus + 1] = v.id
       end
    end
    -- if #cpus > 0 then return cpus else return nil end
    return #cpus > 0 and cpus or nil
 end
 
-function _m.try(cpu, bblock)
-   cpu.run = bblock
+function _m.try(self, c, bblock)
+   self[c].run = bblock
 end
