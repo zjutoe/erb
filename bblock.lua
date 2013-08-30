@@ -84,6 +84,7 @@ function bblock(mem, addr)
 
    local inst = mem:rd(addr)
    while inst and not is_branch(inst) do
+      blk[addr] = inst
       addr = addr + 4
       inst = mem:rd(addr)
    end
@@ -92,6 +93,10 @@ function bblock(mem, addr)
    blk.target = bpredict(inst)	-- next bblock
 
    return blk
+end
+
+function _m.reg_rds(bblk)
+   
 end
 
 function _m.get_bblocks(mem, addr, num)

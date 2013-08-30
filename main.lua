@@ -100,6 +100,9 @@ function main_loop(felf, qemu_bb_log)
    while true do
       local cpus = CPU:idle_cpus()
       print(#cpus, "CPUs are idle")
+      -- TODO for each idle, we could schedule more than one
+      -- consective bblks into it if those bblks are reg rd/wr
+      -- dependent
       if cpus then
 	 -- get num consective BB's from elf
 	 local bbs = bblk.get_bblocks(mem, next_bb_addr, #cpus)
@@ -123,6 +126,7 @@ function main_loop(felf, qemu_bb_log)
 	 
 	 local bblk = CPU[cid].run
 	 
+	 -- FIXME need to compare bblk.tail too
 	 if addr ~= bblk.addr then	    
 	    -- the speculation went a wrong direction
 	    next_bb_addr = tonumber(lines:sub(h+3, h+12)) -- steer to the right direction
@@ -146,6 +150,17 @@ function main_loop(felf, qemu_bb_log)
 	 -- to worry about RAW confliction. In a word, if 1 fails,
 	 -- then the speculation fails, otherwise we continue to check
 	 -- 2.
+
+	 local rds = reg_rds(bblk)
+
+	 -- TODO: adjust the dependency analysis strategy: 1. examine
+	 -- the register rd/wr deps, if conflicts exist, do not
+	 -- parallelize, but issue to the same core (as long as no
+	 -- intermediate bblocks are already scheduled to other
+	 -- cores); 2. only after step 1 that we will examine mem
+	 -- ld/st conflicts to validate speculation, i.e. we only
+	 -- speculate regarding mem rd/st (for those the addr we can't
+	 -- decide before running)
 
 	 --[[ FIXME temprarily disable the block below
 	 -- TODO the mem wr insts and their addrs, record them
