@@ -1,4 +1,18 @@
 local bit = require("bit")
+local ipairs = ipairs
+
+module(...)
+
+local _m = {}
+
+function init()
+   local m = {}
+   for k, v in pairs(_m) do
+      m[k] = v
+   end
+
+   return m   
+end
 
 function bit.sub(d, i, j)
    return bit.rshift(bit.lshift(d, 31-i), 31-i+j)
@@ -146,7 +160,7 @@ local special3 = {		-- op == 0x1F
 }
 
 
-function reg_rds(bblk)
+function _m.reg_io(bblk)
    local read = {}
    local write = {}
    local HI, LO = 34, 35

@@ -28,6 +28,7 @@ function elf_bbs(elf, h, num)
    
 end
 
+-- TODO move to mips.lua
 local is_ld_op = {
    [0x20]  = true, -- do_lb,		-- load byte  
    [0x24]  = true, -- do_lbu,		-- load byte unsigned  
@@ -74,6 +75,8 @@ function ld_st_insts(bblock)
    return ld, st
 end
 
+local mips = require('mips')
+local isa = mips.init()
 
 function main_loop(felf, qemu_bb_log)
    -- init CPUs
@@ -114,6 +117,7 @@ function main_loop(felf, qemu_bb_log)
 	 end
       end
 
+      local reg_out_accum = {}
       local steer = false
       local cid = active_cpus:popleft()
       while cid do
@@ -151,6 +155,22 @@ function main_loop(felf, qemu_bb_log)
 	 -- then the speculation fails, otherwise we continue to check
 	 -- 2.
 
+	 local reg_in, reg_out = isa.reg_io(bblk)
+	 local reg_dep = false
+	 for k, v in pairs(reg_in) do
+	    if reg_out_accum[v] then
+	       reg_dep = true
+	       break
+	    end
+	 end
+	 if reg_dep then
+	    CPU[cid].speculate = 'F' -- fail
+	 else
+	    CPU[cid].speculate = 'P' -- pending
+	 end
+
+	 
+
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
 	 -- care whether the input is correct, what we care is its
@@ -162,7 +182,6 @@ function main_loop(felf, qemu_bb_log)
 	 -- the output matters or not. How to make use of this
 	 -- feature?
 
-	 local rds = reg_rds(bblk)
 
 	 -- TODO: adjust the dependency analysis strategy: 1. examine
 	 -- the register rd/wr deps, if conflicts exist, do not
