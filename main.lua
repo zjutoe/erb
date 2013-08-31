@@ -151,6 +151,17 @@ function main_loop(felf, qemu_bb_log)
 	 -- then the speculation fails, otherwise we continue to check
 	 -- 2.
 
+
+	 -- TODO: treat the bblock as a blackbox, actually we don't
+	 -- care whether the input is correct, what we care is its
+	 -- output. E.g. sometimes some insts will read some value,
+	 -- but never really use them, then such read is effectively
+	 -- nil, and even speculative execution of such insts fail, it
+	 -- doesn't matter. BUT, unless re-run the bblock with correct
+	 -- input and compare the output, we will never know wehther
+	 -- the output matters or not. How to make use of this
+	 -- feature?
+
 	 local rds = reg_rds(bblk)
 
 	 -- TODO: adjust the dependency analysis strategy: 1. examine
