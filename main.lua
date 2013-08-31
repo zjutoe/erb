@@ -167,9 +167,17 @@ function main_loop(felf, qemu_bb_log)
 	    CPU[cid].speculate = 'F' -- fail
 	 else
 	    CPU[cid].speculate = 'P' -- pending
+
+	    -- now the speculative reg reads are successful, which
+	    -- garantee the mem read addresses are correct. we will
+	    -- further verify the speculative mem read by comparing
+	    -- the read addresses against previous writes
+
+	    
+	    
 	 end
 
-	 
+
 
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
