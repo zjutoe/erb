@@ -78,7 +78,7 @@ end
 local mips = require('mips')
 local isa = mips.init()
 
-function main_loop(felf, qemu_bb_log)
+function main_loop(felf, qemu_bb_log, qemu_ss_log)
    -- init CPUs
    local cpu = require 'cpu'
    local CPU = cpu.init(4)
@@ -92,10 +92,15 @@ function main_loop(felf, qemu_bb_log)
    local next_bb_addr = mem.e_entry	-- the execution entry address
 
    local f_bb_log = io.input(qemu_bb_log)
-   local lines = f_bb_log:read("*all")
+   local bblog = f_bb_log:read("*all")
    bbpattern = "pc=.-pc="
    local h
    local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
+
+   local f_ss_log = io.input(qemu_ss_log)
+   local sslog = f_ss_log:read("*all")   
+   local hss
+   local tss = 4
 
    local List = require('list')
    local active_cpus = List.init()
@@ -123,9 +128,9 @@ function main_loop(felf, qemu_bb_log)
       while cid do
 	 -- to follow the real trace, agaist which we should verify the CPUs
 	 local h0, t0 = h, t
-	 h, t = lines:find(bbpattern, t-3)
+	 h, t = bblog:find(bbpattern, t-3)
 	 if h == nil then break end
-	 local addr = tonumber(lines:sub(h+3, h+12))
+	 local addr = tonumber(bblog:sub(h+3, h+12))
 	 print('validating', string.format("0x%x", addr))
 	 
 	 local bblk = CPU[cid].run
@@ -133,7 +138,7 @@ function main_loop(felf, qemu_bb_log)
 	 -- FIXME need to compare bblk.tail too
 	 if addr ~= bblk.addr then	    
 	    -- the speculation went a wrong direction
-	    next_bb_addr = tonumber(lines:sub(h+3, h+12)) -- steer to the right direction
+	    next_bb_addr = tonumber(bblog:sub(h+3, h+12)) -- steer to the right direction
 	    steer = true
 	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
 
@@ -154,30 +159,60 @@ function main_loop(felf, qemu_bb_log)
 	 -- to worry about RAW confliction. In a word, if 1 fails,
 	 -- then the speculation fails, otherwise we continue to check
 	 -- 2.
+	 local reg_dep = false
+	 local mem_dep = false		    
 
 	 local reg_in, reg_out = isa.reg_io(bblk)
-	 local reg_dep = false
 	 for k, v in pairs(reg_in) do
 	    if reg_out_accum[v] then
 	       reg_dep = true
 	       break
 	    end
 	 end
-	 if reg_dep then
-	    CPU[cid].speculate = 'F' -- fail
-	 else
-	    CPU[cid].speculate = 'P' -- pending
 
-	    -- now the speculative reg reads are successful, which
-	    -- garantee the mem read addresses are correct. we will
-	    -- further verify the speculative mem read by comparing
-	    -- the read addresses against previous writes
+	 -- now the speculative reg reads are successful, which
+	 -- garantee the mem read addresses are correct. we will
+	 -- further verify the speculative mem read by comparing
+	 -- the read addresses against previous writes
+	 if not reg_dep then
+	    local mem_io = isa.mem_io(bblk)
+	    -- go thru the mem i/o sequentially
+	    for i, v in ipairs(mem_io) do
+	       hss, tss = sslog:find(bbpattern, tss-3)
+	       if hss == nil then break end
+	       
+	       while hss do
+		  -- found the corresponding instruction instance in single-step trace
+		  if tonumber(sslog:sub(hss+3, hss+12)) == v.pc then
+		     if v.io == 'i' then
+			-- speculative load conflicts with previous committed store
+			if mem_out_accm[v.addr] then
+			   mem_dep = true
+			   break
+			end
+		     else
+			mem_out[v.addr] = true		     
+		     end
+		     
+		     -- only break this level of loop when corresponding inst is found
+		     break 
+		  end  -- if 
+	       end  -- while hss
+	    end  -- for i, v in ipairs(mem_io) 
+	 end  -- if not reg_dep
 
-	    
+	 -- speculation succeeds, to commit the reg and mem output
+	 -- (i.e. write & store)
+	 if not (reg_dep or mem_dep) then
+	    for k, v in pairs(reg_out) do
+	       reg_out_accum[k] = v
+	    end
+	    for k, v in pairs(mem_out) do
+	       mem_out_accum[k] = v
+	    end
+	 else			-- speculation failed
 	    
 	 end
-
-
 
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
@@ -203,7 +238,7 @@ function main_loop(felf, qemu_bb_log)
 	 --[[ FIXME temprarily disable the block below
 	 -- TODO the mem wr insts and their addrs, record them
 	 -- TODO the mem rd insts and their addrs, verify them with previously recorded mem wr
-	 local ld_insts, st_insts = ld_st_insts(lines:sub(h, t))
+	 local ld_insts, st_insts = ld_st_insts(bblog:sub(h, t))
 
 	 -- TODO implement a mem wr queue, from which the rd could be short-cut
 
@@ -229,7 +264,7 @@ function main_loop(felf, qemu_bb_log)
 	 cid = active_cpus:popleft()
       end  -- while cid
 
-      if not steer then next_bb_addr = tonumber(lines:sub(h+3, h+12)) end
+      if not steer then next_bb_addr = tonumber(bblog:sub(h+3, h+12)) end
    end	-- while true
 
 end
