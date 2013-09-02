@@ -160,9 +160,11 @@ local special3 = {		-- op == 0x1F
 }
 
 
-function _m.reg_io(bblk)
+function _m.reg_mem_rw(bblk)
    local read = {}
    local write = {}
+   local memio = {}
+
    local HI, LO = 34, 35
 
    function add_read(...)
@@ -232,9 +234,11 @@ function _m.reg_io(bblk)
       elseif ltype[op] then
 	 add_read(rs)
 	 add_write(rt)
+	 memio[#memio + 1] = {pc=addr, io='i', base=rs, offset=imm}
 
       elseif stype[op] then
 	 add_read(rs, rt)
+	 memio[#memio + 1] = {pc=addr, io='o', base=rs, offset=imm}
 
       elseif op == 0x1C then	-- SPECIAL2
 	 if special2[func] then
@@ -255,5 +259,5 @@ function _m.reg_io(bblk)
 
    -- the register $zero is always 0, never changes
    read[0], write[0] = nil, nil
-   return read, write
+   return read, write, memio
 end

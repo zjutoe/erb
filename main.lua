@@ -75,6 +75,12 @@ function ld_st_insts(bblock)
    return ld, st
 end
 
+
+local function ss_reg_v(bblk, r)
+   
+end
+
+
 local mips = require('mips')
 local isa = mips.init()
 
@@ -162,7 +168,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 local reg_dep = false
 	 local mem_dep = false		    
 
-	 local reg_in, reg_out = isa.reg_io(bblk)
+	 local reg_in, reg_out, memio = isa.reg_mem_rw(bblk)
 	 for k, v in pairs(reg_in) do
 	    if reg_out_accum[v] then
 	       reg_dep = true
@@ -175,30 +181,32 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- further verify the speculative mem read by comparing
 	 -- the read addresses against previous writes
 	 if not reg_dep then
-	    local mem_io = isa.mem_io(bblk)
 	    -- go thru the mem i/o sequentially
-	    for i, v in ipairs(mem_io) do
+	    for i, v in ipairs(memio) do
 	       hss, tss = sslog:find(bbpattern, tss-3)
 	       if hss == nil then break end
 	       
 	       while hss do
 		  -- found the corresponding instruction instance in single-step trace
 		  if tonumber(sslog:sub(hss+3, hss+12)) == v.pc then
+		     local base = ss_reg_v(sslog:sub(hss, tss), v.base)
+		     local a = base + v.offset
+
 		     if v.io == 'i' then
 			-- speculative load conflicts with previous committed store
-			if mem_out_accm[v.addr] then
+			if mem_out_accm[a] then
 			   mem_dep = true
 			   break
 			end
 		     else
-			mem_out[v.addr] = true		     
+			mem_out[a] = true
 		     end
 		     
 		     -- only break this level of loop when corresponding inst is found
 		     break 
 		  end  -- if 
 	       end  -- while hss
-	    end  -- for i, v in ipairs(mem_io) 
+	    end  -- for i, v in ipairs(memio) 
 	 end  -- if not reg_dep
 
 	 -- speculation succeeds, to commit the reg and mem output
@@ -210,9 +218,10 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    for k, v in pairs(mem_out) do
 	       mem_out_accum[k] = v
 	    end
-	 else			-- speculation failed
-	    
-	 end
+	 end	 
+
+	 -- commit or discard, we'll release this CPU	 
+	 CPU[cid].busy = false
 
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
