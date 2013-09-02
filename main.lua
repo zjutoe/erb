@@ -77,7 +77,19 @@ end
 
 
 local function ss_reg_v(bblk, r)
+   if r == 34 then		-- HI
+      return tonumber(bblk:sub(17, 26), 16)
+   elseif r == 35 then		-- LO
+      return tonumber(bblk:sub(31, 40), 16)
+   end
    
+   local init = 60		-- where GPR00 begins
+   local stride1 = 54		-- a line with 4 registers
+   local lead = 7		-- 'GPR00: '
+   local stride2 = 12		-- width of a register
+
+   local reg_h = init + math.floor(r/4) * stride1 + lead + (r%4 * stride2)
+   return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
 
@@ -218,11 +230,14 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    for k, v in pairs(mem_out) do
 	       mem_out_accum[k] = v
 	    end
+
+	    -- TODO count the clocks, see how much performance we
+	    -- accelerated
+	    print(bblk.addr, 'commit on CPU', cid)
 	 end	 
 
 	 -- commit or discard, we'll release this CPU	 
 	 CPU[cid].busy = false
-
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
 	 -- care whether the input is correct, what we care is its
@@ -243,32 +258,6 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- ld/st conflicts to validate speculation, i.e. we only
 	 -- speculate regarding mem rd/st (for those the addr we can't
 	 -- decide before running)
-
-	 --[[ FIXME temprarily disable the block below
-	 -- TODO the mem wr insts and their addrs, record them
-	 -- TODO the mem rd insts and their addrs, verify them with previously recorded mem wr
-	 local ld_insts, st_insts = ld_st_insts(bblog:sub(h, t))
-
-	 -- TODO implement a mem wr queue, from which the rd could be short-cut
-
-	 -- TODO if all rd is valid, commit the BB in this CPU (id==cid)
-	 local invalid = false
-	 for k, v in ipairs(ld_insts) do
-	    local addr = ld_addr(v)
-	    if pending_st[addr] then
-	       invalid = true
-	    end
-	 end
-	 if invalid then
-	    rollback(cid)
-	 else
-	    for k, v in ipairs(st_insts) do
-	       local addr = st_addr(v)
-	       pending_st[addr] = true
-	    end
-	    -- TODO record the clocks of thie bblock
-	 end
-	 --]]
 	 
 	 cid = active_cpus:popleft()
       end  -- while cid
