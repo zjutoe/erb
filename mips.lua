@@ -1,6 +1,7 @@
-local bit = require("bit")
+local bit    = require("bit")
 local ipairs = ipairs
-
+local pairs  = pairs
+      
 module(...)
 
 local _m = {}
@@ -187,64 +188,61 @@ function _m.reg_mem_rw(bblk)
       if op == 0 then
 	 if rtype[func] then
 	    -- op rd, rs, rt
-	    add_read(rs, rt)
-	    add_write(rd)
+	    add_read{rs, rt}
+	    add_write{rd}
 
 	 elseif special[func] then
 	    if func == 0x1A or func == 0x1B or func == 0x18 or func == 0x19 then -- div or mult	       
-	       add_read(rs, rt)
-	       add_write(HI, LO)
+	       add_read{rs, rt}
+	       add_write{HI, LO}
 	       
 	    elseif func == 0x10 then -- mfhi
-	       add_read(HI)
-	       add_write(rs)
+	       add_read{HI}
+	       add_write{rs}
 	       
 	    elseif func == 0x12 then -- mflo
-	       add_read(LO)
-	       add_write(rs)
+	       add_read{LO}
+	       add_write{rs}
 
 	    elseif func == 0x11 then -- mthi
-	       add_read(rs)
-	       add_write(HI)
+	       add_read{rs}
+	       add_write{HI}
 	       
 	    elseif func == 0x13 then -- mtlo
-	       add_read(rs)
-	       add_write(LO)
+	       add_read{rs}
+	       add_write{LO}
 
-	    elseif func == 0x09 or func == 0x0C then -- jalr, syscall
-	       nil
-	       
-	    else
+	    elseif not (func == 0x09 or func == 0x0C) then -- jalr, syscall
 	       error("invalid instruction", string.format("0x%x", inst))
 	    end
+	 end
 
       elseif op == 1 then
 	 if bztype[rt] then
 	    -- we don't care about B or J inst, as its result is handled by branch
 	    -- prediction, including the RA value
-	    nil
 	 else
 	    error("invalid instruction", string.format("0x%x", inst))
 	 end
 
       elseif itype[op] then
-	 add_read(rs)
-	 add_write(rt)
+	 add_read{rs}
+	 add_write{rt}
 	 
       elseif ltype[op] then
-	 add_read(rs)
-	 add_write(rt)
+	 add_read{rs}
+	 add_write{rt}
 	 memio[#memio + 1] = {pc=addr, io='i', base=rs, offset=imm}
 
       elseif stype[op] then
-	 add_read(rs, rt)
+	 add_read{rs, rt}
 	 memio[#memio + 1] = {pc=addr, io='o', base=rs, offset=imm}
 
       elseif op == 0x1C then	-- SPECIAL2
 	 if special2[func] then
 	    if func == 0x02 then -- mul, multiply word to GPR
-	       add_read(rs, rt)
-	       add_write(rd)
+	       add_read{rs, rt}
+	       add_write{rd}
 	    end
 	 else
 	    error("invalid instruction", string.format("0x%x", inst))
@@ -253,7 +251,7 @@ function _m.reg_mem_rw(bblk)
       elseif btype[op] or jtype[op] then
 	 -- we don't care about B or J inst, as its result is handled by branch
 	 -- prediction, including the RA value
-	 nil
+	 --nil
       end
    end  -- for addr=bblk.addr, bblk.tail, 4 do 
 
@@ -261,3 +259,4 @@ function _m.reg_mem_rw(bblk)
    read[0], write[0] = nil, nil
    return read, write, memio
 end
+
