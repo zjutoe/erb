@@ -137,6 +137,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
       end
 
       local reg_out_accum = {}
+      local mem_out_accum = {}
       local steer = false
       local cid = active_cpus:popleft()
       while cid do
@@ -145,9 +146,8 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 h, t = bblog:find(bbpattern, t-3)
 	 if h == nil then break end
 	 local addr = tonumber(bblog:sub(h+3, h+12))
-	 print('validating', string.format("0x%x", addr))
-	 
 	 local bblk = CPU[cid].run
+	 print('validating', string.format("0x%x against 0x%x", addr, bblk.addr))
 	 
 	 -- FIXME need to compare bblk.tail too
 	 if addr ~= bblk.addr then	    
@@ -188,6 +188,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- garantee the mem read addresses are correct. we will
 	 -- further verify the speculative mem read by comparing
 	 -- the read addresses against previous writes
+	 local mem_out = {}
 	 if not reg_dep then
 	    -- go thru the mem i/o sequentially
 	    for i, v in ipairs(memio) do
