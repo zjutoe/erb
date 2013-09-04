@@ -104,6 +104,8 @@ local itype = {
 
    [0x0A]  = true,  --  do_slti,	-- set on less than immediate  
    [0x0B]  = true,  --  do_sltiu,	-- set on less than immediate unsigned  FIXME WTF?
+
+   [0x0F]  = true,  --  do_lui,		-- load upper immediate  
 }
 
 local ltype = {
@@ -111,7 +113,6 @@ local ltype = {
    [0x24]  = true,  --  do_lbu,		-- load byte unsigned  
    [0x21]  = true,  --  do_lh,		--   
    [0x25]  = true,  --  do_lhu,		--   
-   [0x0F]  = true,  --  do_lui,		-- load upper immediate  
    [0x23]  = true,  --  do_lw,		-- load word  
    [0x31]  = true,  --  do_LWC1,		-- load word  to Float Point TODO ...
 }
