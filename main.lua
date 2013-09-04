@@ -73,7 +73,7 @@ end
 
 
 local function ss_reg_v(bblk, r)
-   print('ss_reg_v', bblk:sub(4, 13), r)
+   -- print('ss_reg_v', bblk:sub(4, 13), r)
    if r == 34 then		-- HI
       return tonumber(bblk:sub(17, 26), 16)
    elseif r == 35 then		-- LO
@@ -86,7 +86,7 @@ local function ss_reg_v(bblk, r)
    local stride2 = 12		-- width of a register
 
    local reg_h = init + math.floor(r/4) * stride1 + lead + (r%4 * stride2)
-   print('ss_reg_v', reg_h, bblk:sub(reg_h+3, reg_h+11))
+   -- print('ss_reg_v', reg_h, bblk:sub(reg_h+3, reg_h+11))
    return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
@@ -94,16 +94,14 @@ local function ss_next_inst(sslog, pc, h)
    local bbpattern = "pc=.-pc="
 
    local h, t = sslog:find(bbpattern, h)
-   if h == nil then break end
-   -- print(sslog:sub(hss, tss), string.format('vs 0x%x', v.pc))
+   print(string.format("checking %x %x", h, t))
    while h do
       -- found the corresponding instruction instance in single-step trace
-      if tonumber(sslog:sub(h+3, h+12)) == pc then
-	 break
-      end  -- if 
+      if tonumber(sslog:sub(h+3, h+12)) == pc then break end
       h, t = sslog:find(bbpattern, t-3)
+      print(string.format("checking %x %x", h, t))
    end
-
+   print(string.format('Bing! 0x%x\n', pc), sslog:sub(h, t-3))
    return h, t
 end
 
@@ -212,31 +210,20 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    -- print('#memio =', #memio)
 	    -- go thru the mem i/o sequentially
 	    for i, v in ipairs(memio) do
-	       hss, tss = sslog:find(bbpattern, tss-3)
-	       if hss == nil then break end
-	       -- print(sslog:sub(hss, tss), string.format('vs 0x%x', v.pc))
-	       while hss do
-		  -- found the corresponding instruction instance in single-step trace
-		  if tonumber(sslog:sub(hss+3, hss+12)) == v.pc then
-		     print(string.format("0x%x", v.pc), v.base)		     
-		     local base = ss_reg_v(sslog:sub(hss, tss), v.base)
-		     local a = base + v.offset
+	       hss, tss = ss_next_inst(sslog, v.pc, tss-3)
+	       if not hss then break end
+	       
+	       -- print(string.format("0x%x", v.pc), v.base)		     
+	       local base = ss_reg_v(sslog:sub(hss, tss), v.base)
+	       local a = base + v.offset
 
-		     if v.io == 'i' then
-			-- speculative load conflicts with previous committed store
-			if mem_out_accum[a] then
-			   mem_dep = true
-			   break
-			end
-		     else
-			mem_out[a] = true
-		     end
+	       if v.io == 'i' then
+		  -- speculative load conflicts with previous committed store
+		  if mem_out_accum[a] then mem_dep = true end
+	       else
+		  mem_out[a] = true
+	       end
 		     
-		     -- only break this level of loop when corresponding inst is found
-		     break 
-		  end  -- if 
-		  hss, tss = sslog:find(bbpattern, tss-3)
-	       end  -- while hss
 	    end  -- for i, v in ipairs(memio) 
 	 end  -- if not reg_dep
 
