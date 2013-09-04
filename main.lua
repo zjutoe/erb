@@ -80,12 +80,13 @@ local function ss_reg_v(bblk, r)
       return tonumber(bblk:sub(31, 40), 16)
    end
    
-   local init = 60		-- where GPR00 begins
-   local stride1 = 54		-- a line with 4 registers
+   local init = 61		-- where GPR00 begins
+   local stride1 = 55		-- a line with 4 registers
    local lead = 7		-- 'GPR00: '
    local stride2 = 12		-- width of a register
 
    local reg_h = init + math.floor(r/4) * stride1 + lead + (r%4 * stride2)
+   print('ss_reg_v', reg_h, bblk:sub(reg_h+3, reg_h+11))
    return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
@@ -200,8 +201,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	       while hss do
 		  -- found the corresponding instruction instance in single-step trace
 		  if tonumber(sslog:sub(hss+3, hss+12)) == v.pc then
-		     print(string.format("0x%x", v.pc), v.base)
-		     
+		     print(string.format("0x%x", v.pc), v.base)		     
 		     local base = ss_reg_v(sslog:sub(hss, tss), v.base)
 		     local a = base + v.offset
 
