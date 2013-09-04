@@ -207,7 +207,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 		     if v.io == 'i' then
 			-- speculative load conflicts with previous committed store
-			if mem_out_accm[a] then
+			if mem_out_accum[a] then
 			   mem_dep = true
 			   break
 			end
