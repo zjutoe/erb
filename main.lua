@@ -90,6 +90,23 @@ local function ss_reg_v(bblk, r)
    return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
+local function ss_next_inst(sslog, pc, h)
+   local bbpattern = "pc=.-pc="
+
+   local h, t = sslog:find(bbpattern, h)
+   if h == nil then break end
+   -- print(sslog:sub(hss, tss), string.format('vs 0x%x', v.pc))
+   while h do
+      -- found the corresponding instruction instance in single-step trace
+      if tonumber(sslog:sub(h+3, h+12)) == pc then
+	 break
+      end  -- if 
+      h, t = sslog:find(bbpattern, t-3)
+   end
+
+   return h, t
+end
+
 
 local mips = require('mips')
 local isa = mips.init()
@@ -109,7 +126,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
    local f_bb_log = io.input(qemu_bb_log)
    local bblog = f_bb_log:read("*all")
-   bbpattern = "pc=.-pc="
+   local bbpattern = "pc=.-pc="
    local h
    local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
 
