@@ -83,18 +83,18 @@ end
 function bblock(mem, addr)
    local blk = {}
    blk.addr = addr
-   print(string.format('bblk 0x%x', addr))
+   -- print(string.format('bblk 0x%x', addr))
 
    local inst
    repeat
       inst = mem:rd(addr)
       blk[addr] = inst
-      print('', string.format("0x%x 0x%x", addr, blk[addr]))
+      -- print('', string.format("0x%x 0x%x", addr, blk[addr]))
       addr = addr + 4
    until not (inst and not is_branch(inst))
    blk.tail = addr		-- the delay slot already included
    blk[addr] = mem:rd(addr)
-   print('', string.format("0x%x 0x%x", addr, blk[addr]))
+   -- print('', string.format("0x%x 0x%x", addr, blk[addr]))
    
    blk.target = bpredict(inst)	-- next bblock
 

@@ -73,6 +73,7 @@ end
 
 
 local function ss_reg_v(bblk, r)
+   print('ss_reg_v', bblk:sub(4, 13), r)
    if r == 34 then		-- HI
       return tonumber(bblk:sub(17, 26), 16)
    elseif r == 35 then		-- LO
@@ -147,7 +148,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 if h == nil then break end
 	 local addr = tonumber(bblog:sub(h+3, h+12))
 	 local bblk = CPU[cid].run
-	 print('validating', string.format("0x%x against 0x%x", addr, bblk.addr))
+	 print(string.format("validating 0x%x against 0x%x on CPU %d", addr, bblk.addr, cid))
 	 
 	 -- FIXME need to compare bblk.tail too
 	 if addr ~= bblk.addr then	    
@@ -190,14 +191,17 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- the read addresses against previous writes
 	 local mem_out = {}
 	 if not reg_dep then
+	    -- print('#memio =', #memio)
 	    -- go thru the mem i/o sequentially
 	    for i, v in ipairs(memio) do
 	       hss, tss = sslog:find(bbpattern, tss-3)
 	       if hss == nil then break end
-	       
+	       -- print(sslog:sub(hss, tss), string.format('vs 0x%x', v.pc))
 	       while hss do
 		  -- found the corresponding instruction instance in single-step trace
 		  if tonumber(sslog:sub(hss+3, hss+12)) == v.pc then
+		     print(string.format("0x%x", v.pc), v.base)
+		     
 		     local base = ss_reg_v(sslog:sub(hss, tss), v.base)
 		     local a = base + v.offset
 
@@ -214,6 +218,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 		     -- only break this level of loop when corresponding inst is found
 		     break 
 		  end  -- if 
+		  hss, tss = sslog:find(bbpattern, tss-3)
 	       end  -- while hss
 	    end  -- for i, v in ipairs(memio) 
 	 end  -- if not reg_dep
@@ -230,7 +235,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 	    -- TODO count the clocks, see how much performance we
 	    -- accelerated
-	    print(bblk.addr, 'commit on CPU', cid)
+	    print(string.format("0x%x", bblk.addr), 'commit on CPU', cid)
 	 end	 
 
 	 -- commit or discard, we'll release this CPU	 

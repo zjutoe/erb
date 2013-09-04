@@ -183,6 +183,8 @@ function _m.reg_mem_rw(bblk)
 	 write[v] = true
       end
    end
+
+   print(string.format("examine reg mem I/O 0x%x -> 0x%x", bblk.addr, bblk.tail))
    
    for addr=bblk.addr, bblk.tail, 4 do
       local inst = bblk[addr]
