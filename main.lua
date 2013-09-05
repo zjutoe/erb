@@ -91,17 +91,23 @@ local function ss_reg_v(bblk, r)
 end
 
 local function ss_next_inst(sslog, pc, h)
-   local bbpattern = "pc=.-pc="
+   print(string.format('searching for 0x%x ... ', pc))
+   -- local bbpattern = "pc=.-pc="
+   local in_asm = "\nIN: .-\n0x.-\n\n"
 
-   local h, t = sslog:find(bbpattern, h)
-   print(string.format("checking %x %x", h, t))
+   -- local h, t = sslog:find(bbpattern, h)
+   local h, t = sslog:find(in_asm, h)
+
    while h do
+      h = h - 2075
+      print(string.format("checking %x %x:", h, t), sslog:sub(h+3, h+12))
       -- found the corresponding instruction instance in single-step trace
       if tonumber(sslog:sub(h+3, h+12)) == pc then break end
-      h, t = sslog:find(bbpattern, t-3)
-      print(string.format("checking %x %x", h, t))
+      -- h, t = sslog:find(bbpattern, t-3)
+      h, t = sslog:find(in_asm, t)
    end
-   print(string.format('Bing! 0x%x\n', pc), sslog:sub(h, t-3))
+   print('Ding!\n')
+   print(sslog:sub(h, t))
    return h, t
 end
 
@@ -125,13 +131,14 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
    local f_bb_log = io.input(qemu_bb_log)
    local bblog = f_bb_log:read("*all")
    local bbpattern = "pc=.-pc="
+   local in_asm = "\nIN: .-\n0x.-\n\n"
    local h
    local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
 
    local f_ss_log = io.input(qemu_ss_log)
    local sslog = f_ss_log:read("*all")   
    local hss
-   local tss = 4
+   local tss = 0
 
    local List = require('list')
    local active_cpus = List.init()
@@ -160,8 +167,11 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
       while cid do
 	 -- to follow the real trace, agaist which we should verify the CPUs
 	 local h0, t0 = h, t
-	 h, t = bblog:find(bbpattern, t-3)
+	 h, t = bblog:find(in_asm, t)
+	 -- h, t = bblog:find(bbpattern, t-3)
 	 if h == nil then break end
+	 h = h - 2075		-- include the CPU state
+	 print(bblog:sub(h+3, h+12))
 	 local addr = tonumber(bblog:sub(h+3, h+12))
 	 local bblk = CPU[cid].run
 	 print(string.format("validating 0x%x against 0x%x on CPU %d", addr, bblk.addr, cid))
@@ -169,9 +179,11 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- FIXME need to compare bblk.tail too
 	 if addr ~= bblk.addr then	    
 	    -- the speculation went a wrong direction
-	    next_bb_addr = tonumber(bblog:sub(h+3, h+12)) -- steer to the right direction
+	    next_bb_addr = addr -- steer to the right direction
 	    steer = true
 	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
+
+	    print('----------------------------')
 
 	    h, t = h0, t0	-- backoff the trace for 1 bblock
 	    CPU[cid].busy = false -- directly discard the bblock in the cpu
@@ -210,7 +222,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    -- print('#memio =', #memio)
 	    -- go thru the mem i/o sequentially
 	    for i, v in ipairs(memio) do
-	       hss, tss = ss_next_inst(sslog, v.pc, tss-3)
+	       hss, tss = ss_next_inst(sslog, v.pc, tss)
 	       if not hss then break end
 	       
 	       -- print(string.format("0x%x", v.pc), v.base)		     
@@ -244,6 +256,8 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 	 -- commit or discard, we'll release this CPU	 
 	 CPU[cid].busy = false
+
+	 print('----------------------------')
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
 	 -- care whether the input is correct, what we care is its
