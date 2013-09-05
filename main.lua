@@ -90,19 +90,17 @@ local function ss_reg_v(bblk, r)
    return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
-local function ss_next_inst(sslog, pc, h)
+local function ss_next_inst(sslog, h, pc)
    print(string.format('searching for 0x%x ... ', pc))
-   -- local bbpattern = "pc=.-pc="
-   local in_asm = "\nIN: .-\n0x.-\n\n"
 
-   -- local h, t = sslog:find(bbpattern, h)
+   local in_asm = "\nIN: .-\n0x.-\n\n"
    local h, t = sslog:find(in_asm, h)
 
    while h do
       h = h - 2075
       print(string.format("checking %x %x:", h, t), sslog:sub(h+3, h+12))
       -- found the corresponding instruction instance in single-step trace
-      if tonumber(sslog:sub(h+3, h+12)) == pc then break end
+      if (pc == nil) or (tonumber(sslog:sub(h+3, h+12)) == pc) then break end
       -- h, t = sslog:find(bbpattern, t-3)
       h, t = sslog:find(in_asm, t)
    end
