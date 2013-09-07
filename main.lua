@@ -90,6 +90,7 @@ local function ss_reg_v(bblk, r)
    return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
+-- next instruction from the singlestep trace
 local function ss_next_inst(sslog, h, pc)
    print(string.format('searching for 0x%x ... ', pc))
 
@@ -124,7 +125,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
    local mem = elf.load(felf)
    local bblock = require ("bblock")
    local bblk = bblock.init()
-   local next_bb_addr = mem.e_entry	-- the execution entry address
+   -- local next_bb_addr = mem.e_entry	-- the execution entry address
 
    local f_bb_log = io.input(qemu_bb_log)
    local bblog = f_bb_log:read("*all")
@@ -135,7 +136,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
    local f_ss_log = io.input(qemu_ss_log)
    local sslog = f_ss_log:read("*all")   
-   local hss
+   local hss = 0
    local tss = 0
 
    local List = require('list')
@@ -144,6 +145,15 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
    while true do
       local cpus = CPU:idle_cpus()
       print(#cpus, "CPUs are idle")
+
+      hss, tss = ss_next_inst(sslog, hss)
+      if hss then
+	 next_bb_addr = tonumber(bblog:sub(hss+3, hss+12))
+      else
+	 print('end')
+	 break
+      end
+	 
       -- TODO for each idle, we could schedule more than one
       -- consective bblks into it if those bblks are reg rd/wr
       -- dependent
@@ -158,72 +168,45 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 end
       end
 
+      -- TODO: 1. validate the register reads; 2. validate the
+      -- memory reads. If the register reads are all correct, then
+      -- the memory read addresses are correct, upon which we only
+      -- need to worry about the memory read value, i.e. just need
+      -- to worry about RAW confliction. In a word, if 1 fails,
+      -- then the speculation fails, otherwise we continue to check
+      -- 2.
+      local reg_dep = false
+      local mem_dep = false		    
       local reg_out_accum = {}
       local mem_out_accum = {}
+
+      local reg_in, reg_out, memio = isa.reg_mem_rw(bblk)
+      for k, v in pairs(reg_in) do
+	 if reg_out_accum[v] then
+	    reg_dep = true
+	    break
+	 end
+      end      
+
       local steer = false
       local cid = active_cpus:popleft()
       while cid do
 	 -- to follow the real trace, agaist which we should verify the CPUs
-	 local h0, t0 = h, t
-	 h, t = bblog:find(in_asm, t)
-	 -- h, t = bblog:find(bbpattern, t-3)
-	 if h == nil then break end
-	 h = h - 2075		-- include the CPU state
-	 print(bblog:sub(h+3, h+12))
-	 local addr = tonumber(bblog:sub(h+3, h+12))
-	 local bblk = CPU[cid].run
-	 print(string.format("validating 0x%x against 0x%x on CPU %d", addr, bblk.addr, cid))
-	 
-	 -- FIXME need to compare bblk.tail too
-	 if addr ~= bblk.addr then	    
-	    -- the speculation went a wrong direction
-	    next_bb_addr = addr -- steer to the right direction
-	    steer = true
-	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
-
-	    print('----------------------------')
-
-	    h, t = h0, t0	-- backoff the trace for 1 bblock
-	    CPU[cid].busy = false -- directly discard the bblock in the cpu
-	    cid = active_cpus:popleft()
-	    while cid do
-	       CPU[cid].busy = false -- directly discard the bblock in the cpu
-	       cid = active_cpus:popleft()
-	    end
-	    break
-	 end
-
-	 -- TODO: 1. validate the register reads; 2. validate the
-	 -- memory reads. If the register reads are all correct, then
-	 -- the memory read addresses are correct, upon which we only
-	 -- need to worry about the memory read value, i.e. just need
-	 -- to worry about RAW confliction. In a word, if 1 fails,
-	 -- then the speculation fails, otherwise we continue to check
-	 -- 2.
-	 local reg_dep = false
-	 local mem_dep = false		    
-
-	 local reg_in, reg_out, memio = isa.reg_mem_rw(bblk)
-	 for k, v in pairs(reg_in) do
-	    if reg_out_accum[v] then
-	       reg_dep = true
+	 local bb = CPU[cid].run
+	 local pc = bb.addr
+	 local h0, t0 = hss, tss
+	 -- hss, tss = ss_next_inst(sslog, hss) already done earlier
+	 while hss do
+	    local pcss = tonumber(sslog:sub(hss+3, hss+12))
+	    if pcss ~= pc then
+	       next_bb_addr = pcss -- steer to the right direction
+	       hss, tss = h0, t0 -- back off one instruction
+	       steer = true
 	       break
 	    end
-	 end
 
-	 -- now the speculative reg reads are successful, which
-	 -- garantee the mem read addresses are correct. we will
-	 -- further verify the speculative mem read by comparing
-	 -- the read addresses against previous writes
-	 local mem_out = {}
-	 if not reg_dep then
-	    -- print('#memio =', #memio)
-	    -- go thru the mem i/o sequentially
-	    for i, v in ipairs(memio) do
-	       hss, tss = ss_next_inst(sslog, v.pc, tss)
-	       if not hss then break end
-	       
-	       -- print(string.format("0x%x", v.pc), v.base)		     
+	    local v = memio[pc]
+	    if v then
 	       local base = ss_reg_v(sslog:sub(hss, tss), v.base)
 	       local a = base + v.offset
 
@@ -233,9 +216,28 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	       else
 		  mem_out[a] = true
 	       end
-		     
-	    end  -- for i, v in ipairs(memio) 
-	 end  -- if not reg_dep
+	    end
+
+	    pc = pc + 4
+	    h0, t0 = hss, tss
+	    hss, tss = ss_next_inst(sslog, hss)
+	 end
+
+	 if steer then
+	    -- the speculation went a wrong direction
+	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
+
+	    print('----------------------------')
+
+	    CPU[cid].busy = false -- directly discard the bblock in the cpu
+	    cid = active_cpus:popleft()
+	    while cid do
+	       CPU[cid].busy = false -- directly discard the bblock in the cpu
+	       cid = active_cpus:popleft()
+	    end
+
+	    break
+	 end
 
 	 -- speculation succeeds, to commit the reg and mem output
 	 -- (i.e. write & store)
@@ -249,13 +251,51 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 	    -- TODO count the clocks, see how much performance we
 	    -- accelerated
-	    print(string.format("0x%x", bblk.addr), 'commit on CPU', cid)
+	    print(string.format("0x%x", bb.addr), 'commit on CPU', cid)
 	 end	 
 
 	 -- commit or discard, we'll release this CPU	 
 	 CPU[cid].busy = false
 
 	 print('----------------------------')
+
+	 
+	 -- local h0, t0 = h, t
+	 -- h, t = bblog:find(in_asm, t)
+	 -- -- h, t = bblog:find(bbpattern, t-3)
+	 -- if h == nil then break end
+	 -- h = h - 2075		-- include the CPU state
+	 -- print(bblog:sub(h+3, h+12))
+	 -- local addr = tonumber(bblog:sub(h+3, h+12))
+	 -- local bblk = CPU[cid].run
+	 -- print(string.format("validating 0x%x against 0x%x on CPU %d", addr, bblk.addr, cid))
+	 
+	 -- -- now the speculative reg reads are successful, which
+	 -- -- garantee the mem read addresses are correct. we will
+	 -- -- further verify the speculative mem read by comparing
+	 -- -- the read addresses against previous writes
+	 -- local mem_out = {}
+	 -- if not reg_dep then
+	 --    -- print('#memio =', #memio)
+	 --    -- go thru the mem i/o sequentially
+	 --    for i, v in ipairs(memio) do
+	 --       hss, tss = ss_next_inst(sslog, v.pc, tss)
+	 --       if not hss then break end
+	       
+	 --       -- print(string.format("0x%x", v.pc), v.base)		     
+	 --       local base = ss_reg_v(sslog:sub(hss, tss), v.base)
+	 --       local a = base + v.offset
+
+	 --       if v.io == 'i' then
+	 -- 	  -- speculative load conflicts with previous committed store
+	 -- 	  if mem_out_accum[a] then mem_dep = true end
+	 --       else
+	 -- 	  mem_out[a] = true
+	 --       end
+		     
+	 --    end  -- for i, v in ipairs(memio) 
+	 -- end  -- if not reg_dep
+
 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
 	 -- care whether the input is correct, what we care is its
@@ -280,10 +320,10 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 cid = active_cpus:popleft()
       end  -- while cid
 
-      if not steer then next_bb_addr = tonumber(bblog:sub(h+3, h+12)) end
+      -- if not steer then next_bb_addr = tonumber(bblog:sub(h+3, h+12)) end
    end	-- while true
 
 end
 
 -- main_loop(arg[1], arg[2], arg[3])
-main_loop('test/hello-mips.S', 'test/qemu-bb.log', 'test/qemu.log')
+main_loop('test/hello-mips.S', 'test/qemu-bb.log', 'test/qemu-ss.log')
