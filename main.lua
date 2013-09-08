@@ -80,7 +80,7 @@ local function ss_reg_v(bblk, r)
       return tonumber(bblk:sub(31, 40), 16)
    end
    
-   local init = 61		-- where GPR00 begins
+   local init = 1		-- where GPR00 begins
    local stride1 = 55		-- a line with 4 registers
    local lead = 7		-- 'GPR00: '
    local stride2 = 12		-- width of a register
@@ -92,22 +92,24 @@ end
 
 -- next instruction from the singlestep trace
 local function ss_next_inst(sslog, h, pc)
-   print(string.format('searching for 0x%x ... ', pc))
+   -- print(string.format('searching for 0x%x ... ', pc))
 
    local in_asm = "\nIN: .-\n0x.-\n\n"
    local h, t = sslog:find(in_asm, h)
+   local h0
 
    while h do
-      h = h - 2075
-      print(string.format("checking %x %x:", h, t), sslog:sub(h+3, h+12))
+      -- h = h - 2075
+      h0 = h - 2014
+      print(string.format("checking %x %x:", h, t), sslog:sub(h+6, h+15))
       -- found the corresponding instruction instance in single-step trace
       if (pc == nil) or (tonumber(sslog:sub(h+3, h+12)) == pc) then break end
       -- h, t = sslog:find(bbpattern, t-3)
       h, t = sslog:find(in_asm, t)
    end
    print('Ding!\n')
-   print(sslog:sub(h, t))
-   return h, t
+   print(sslog:sub(h0, t))
+   return h0, h, t
 end
 
 
@@ -146,9 +148,9 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
       local cpus = CPU:idle_cpus()
       print(#cpus, "CPUs are idle")
 
-      hss, tss = ss_next_inst(sslog, hss)
+      hss0, hss, tss = ss_next_inst(sslog, tss)
       if hss then
-	 next_bb_addr = tonumber(bblog:sub(hss+3, hss+12))
+	 next_bb_addr = tonumber(bblog:sub(hss+6, hss+15))
       else
 	 print('end')
 	 break
@@ -168,37 +170,42 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 end
       end
 
-      -- TODO: 1. validate the register reads; 2. validate the
-      -- memory reads. If the register reads are all correct, then
-      -- the memory read addresses are correct, upon which we only
-      -- need to worry about the memory read value, i.e. just need
-      -- to worry about RAW confliction. In a word, if 1 fails,
-      -- then the speculation fails, otherwise we continue to check
-      -- 2.
-      local reg_dep = false
-      local mem_dep = false		    
       local reg_out_accum = {}
       local mem_out_accum = {}
 
-      local reg_in, reg_out, memio = isa.reg_mem_rw(bblk)
-      for k, v in pairs(reg_in) do
-	 if reg_out_accum[v] then
-	    reg_dep = true
-	    break
-	 end
-      end      
-
-      local steer = false
       local cid = active_cpus:popleft()
       while cid do
 	 -- to follow the real trace, agaist which we should verify the CPUs
 	 local bb = CPU[cid].run
+
+	 local reg_in, reg_out, memio = isa.reg_mem_rw(bb)
+	 for k, v in pairs(reg_in) do
+	    if reg_out_accum[v] then
+	       reg_dep = true
+	       break
+	    end
+	 end      
+
+	 -- TODO: 1. validate the register reads; 2. validate the
+	 -- memory reads. If the register reads are all correct, then
+	 -- the memory read addresses are correct, upon which we only
+	 -- need to worry about the memory read value, i.e. just need
+	 -- to worry about RAW confliction. In a word, if 1 fails,
+	 -- then the speculation fails, otherwise we continue to check
+	 -- 2.
+
+	 local steer = false
+	 local reg_dep = false
+	 local mem_dep = false		    
+
 	 local pc = bb.addr
 	 local h0, t0 = hss, tss
-	 -- hss, tss = ss_next_inst(sslog, hss) already done earlier
+
+	 -- hss, tss = ss_next_inst(sslog, tss) already done earlier
 	 while hss do
-	    local pcss = tonumber(sslog:sub(hss+3, hss+12))
+	    local pcss = tonumber(sslog:sub(hss+6, hss+16))
 	    if pcss ~= pc then
+	       print(string.format("%x ~= %x", pcss, pc))
 	       next_bb_addr = pcss -- steer to the right direction
 	       hss, tss = h0, t0 -- back off one instruction
 	       steer = true
@@ -207,7 +214,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 	    local v = memio[pc]
 	    if v then
-	       local base = ss_reg_v(sslog:sub(hss, tss), v.base)
+	       local base = ss_reg_v(sslog:sub(hss0, tss), v.base)
 	       local a = base + v.offset
 
 	       if v.io == 'i' then
@@ -219,8 +226,9 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    end
 
 	    pc = pc + 4
+	    print(string.format('pc=%x', pc))
 	    h0, t0 = hss, tss
-	    hss, tss = ss_next_inst(sslog, hss)
+	    hss0, hss, tss = ss_next_inst(sslog, tss)
 	 end
 
 	 if steer then
