@@ -112,6 +112,68 @@ local function ss_next_inst(sslog, h, pc)
    return h0, h, t
 end
 
+local mips_reg_name = {
+   [0] = 'r0',
+   [1] = 'at',
+   [2] = 'v0',
+   [3] = 'v1',
+   [4] = 'a0',
+   [5] = 'a1',
+   [6] = 'a2',
+   [7] = 'a3',
+
+   [8] = 't0',
+   [9] = 't1',
+   [10] = 't2',
+   [11] = 't3',
+   [12] = 't4',
+   [13] = 't5',
+   [14] = 't6',
+   [15] = 't7',
+
+   [16] = 's0',
+   [17] = 's1',
+   [18] = 's2',
+   [19] = 's3',
+   [20] = 's4',
+   [21] = 's5',
+   [22] = 's6',
+   [23] = 's7',
+
+   [24] = 't8',
+   [25] = 't9',
+   [26] = 'k0',
+   [27] = 'k1',
+
+   [28] = 'gp',
+   [29] = 'sp',
+   [30] = 's8',
+   [31] = 'ra',
+}
+
+
+local function ss_regv(sslog, b, r)
+   if r == 34 then
+      local h, t = sslog:find("HI=0x%x%x%x%x%x%x%x%x")
+      return tonumber(sslog:sub(h+5, t), 16)
+   elseif r == 35 then
+      local h, t = sslog:find("LO=0x%x%x%x%x%x%x%x%x")
+      return tonumber(sslog:sub(h+5, t), 16)
+   else
+      local regname = mips_reg_name[r]
+      if regname then
+	 local h, t = sslog:find(regname .. " %x%x%x%x%x%x%x%x")
+	 return tonumber(sslog:sub(t-8, t))
+      end
+   end
+end
+
+local function ss_next_i(sslog, b)
+   local in_asm = "\n0x%x%x%x%x%x%x%x%x"
+   local i, j = sslog:find(in_asm, b)
+   return i+1, j
+end
+
 
 local mips = require('mips')
 local isa = mips.init()
