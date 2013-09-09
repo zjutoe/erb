@@ -203,7 +203,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 	 -- hss, tss = ss_next_inst(sslog, tss) already done earlier
 	 while hss do
-	    local pcss = tonumber(sslog:sub(hss+6, hss+16))
+	    local pcss = tonumber(sslog:sub(hss+6, hss+15))
 	    if pcss ~= pc then
 	       print(string.format("%x ~= %x", pcss, pc))
 	       next_bb_addr = pcss -- steer to the right direction
