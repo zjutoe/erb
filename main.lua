@@ -303,9 +303,14 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	       end
 	    end
 
+	    -- the last inst of this bb is done
+	    if pc == bb.tail then break end
+
+	    -- proceed to the next inst in this bb
+	    pc = pc + 4
 	    h1 = hss		-- in case we need to back off 
 	    hss, tss, pcss = ss_next_i(sslog, hss)
-	    pc = pc + 4
+
 	    print(string.format('pc=%x, pcss=%x', pc, pcss))
 	 end  -- hss
 
@@ -322,6 +327,8 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 --]]
 
 	 CPU[cid].busy = false
+
+	 -- cannot commit
 	 if mem_dep then break end
 
 	 -- speculation succeeds, to commit the reg and mem output
@@ -333,6 +340,9 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- accelerated
 	 print(string.format("0x%x", bb.addr), 'commit on CPU', cid)
 	 print('----------------------------')
+
+	 -- discard following CPUs, but should commit this one
+	 if steer then break end
 	 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
 	 -- care whether the input is correct, what we care is its
