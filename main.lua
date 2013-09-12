@@ -178,7 +178,7 @@ end
 local libcpu = require 'cpu'
 local CPU = libcpu.init(4)
 
-local function bb_try(cpus, bblk, next_bb_addr)
+local function bb_try(cpus, mem, bblk, next_bb_addr)
    -- get num consective BB's from elf
    local bbs = bblk.get_bblocks(mem, next_bb_addr, #cpus)
    -- TODO should have a better schedule algorithm
@@ -234,7 +234,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
       -- consective bblks into it if those bblks are reg rd/wr
       -- dependent
       if cpus then
-	 bb_try(cpus, bblk, next_bb_addr)
+	 bb_try(cpus, mem, bblk, next_bb_addr)
 	 for i, v in ipairs(cpus) do
 	    active_cpus:pushright(v)
 	 end
@@ -267,17 +267,21 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 end
 	 
 	 local steer, mem_dep = false, false
+	 local mem_out = {}
 	 local pc = bb.addr
 	 local pcss
 
-	 hss, tss, pcss = ss_next_i(sslog, h0)
+	 local h1 = hss
+	 hss, tss, pcss = ss_next_i(sslog, hss)
 	 while hss do
 	    -- TODO validate_inst(sslog, hss, tss, pcss, pc)
-	    if pcss ~= pc then
-	       print(string.format("%x ~= %x", pcss, pc))
+
+	    -- this means a branch happens, i.e. the last bblk is done
+	    if pcss ~= pc then	       
 	       next_bb_addr = pcss -- steer to the right direction
-	       hss = h0 -- back off one bblk
+	       hss = h1		   -- back off one instruction
 	       steer = true
+	       print(string.format("%x ~= %x, steer to %x", pcss, pc, next_bb_addr))
 	       break
 	    end
 
@@ -289,7 +293,9 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	       if v.io == 'i' then
 		  -- speculative load conflicts with previous committed store
 		  if mem_out_accum[a] then
+		     hss = h0 -- back off one bblk
 		     mem_dep = true
+		     print("mem dependency")
 		     break
 		  end
 	       else
@@ -297,11 +303,13 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	       end
 	    end
 
+	    h1 = hss		-- in case we need to back off 
+	    hss, tss, pcss = ss_next_i(sslog, hss)
 	    pc = pc + 4
-	    print(string.format('pc=%x', pc))
+	    print(string.format('pc=%x, pcss=%x', pc, pcss))
 	 end  -- hss
 
-	 -- [[
+	 --[[
 	 if steer then
 	    -- the speculation went a wrong direction
 	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
@@ -311,16 +319,16 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    print('----------------------------')
 	    break
 	 end
-	 -- ]]
+	 --]]
 
-	 if steer or mem_dep then break end
+	 CPU[cid].busy = false
+	 if mem_dep then break end
 
 	 -- speculation succeeds, to commit the reg and mem output
 	 -- (i.e. write & store)
 	 for k, v in pairs(reg_out) do reg_out_accum[k] = v end
 	 for k, v in pairs(mem_out) do mem_out_accum[k] = v end
 
-	 CPU[cid].busy = false
 	 -- TODO count the clocks, see how much performance we
 	 -- accelerated
 	 print(string.format("0x%x", bb.addr), 'commit on CPU', cid)
@@ -347,7 +355,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	 -- decide before running)
 	 
 	 cid = active_cpus:popleft()
-      end  -- while cid
+      end  -- while cid and not finish do
 
       -- discard the rest bblks 
       cid = active_cpus:popleft()
