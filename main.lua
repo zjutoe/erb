@@ -171,6 +171,7 @@ end
 local function ss_next_i(sslog, b)
    local in_asm = "\n0x%x%x%x%x%x%x%x%x"
    local i, j = sslog:find(in_asm, b)
+   if not i then return nil end
    return i+1, j, tonumber(sslog:sub(i+1, j))
 end
 
@@ -311,7 +312,9 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    h1 = hss		-- in case we need to back off 
 	    hss, tss, pcss = ss_next_i(sslog, hss)
 
-	    print(string.format('pc=%x, pcss=%x', pc, pcss))
+	    if pcss then
+	       print(string.format('pc=%x, pcss=%x', pc, pcss))
+	    end
 	 end  -- hss
 
 	 --[[
