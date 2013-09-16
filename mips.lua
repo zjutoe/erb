@@ -156,6 +156,7 @@ local special2 = {		-- op = 0x1C
    -- key: inst[5:0], i.e. func
    
    [0x02]  = true, --  do_mul,		-- Multiply word to GPR, NOTE: not MULT
+   [0x00]  = true, --  do_madd,		-- Multiply and Add Word to Hi,Lo
 }
 
 local special3 = {		-- op == 0x1F
@@ -250,6 +251,9 @@ function _m.reg_mem_rw(bblk)
 	    if func == 0x02 then -- mul, multiply word to GPR
 	       add_read{rs, rt}
 	       add_write{rd}
+	    elseif func == 0x00 then
+	       add_read{rs, rt, HI, LO}
+	       add_write{HI, LO}
 	    end
 	 else
 	    error("invalid instruction", string.format("0x%x", inst))
