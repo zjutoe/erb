@@ -4,77 +4,9 @@ function bit.sub(d, i, j)
    return bit.rshift(bit.lshift(d, 31-i), 31-i+j)
 end
 
+local D = print
 -- function D(...)
 -- end
-
-local D = print
-
--- main loop logic:
-
--- try_bb()
--- 1. for reg rd inst, record the read value
--- 2. for mem rd inst, record the mem addr ad read value
--- 3. for reg write inst, hold the write till commit
--- 4. for mem write inst, hold the write till commit
-
--- verify_bb()
--- 1. check for reg/mem read integraty
-
--- run_bb()
--- 1. count the insts number
-
--- commit_bb()
--- 1. commit the reg/mem write
-
-
-
--- -- TODO move to mips.lua
--- local is_ld_op = {
---    [0x20]  = true, -- do_lb,		-- load byte  
---    [0x24]  = true, -- do_lbu,		-- load byte unsigned  
---    [0x21]  = true, -- do_lh,		--   
---    [0x25]  = true, -- do_lhu,		--   
---    [0x0F]  = true, -- do_lui,		-- load upper immediate  
---    [0x23]  = true, -- do_lw,		-- load word  
---    [0x31]  = true, -- do_LWC1,		-- load word  to Float Point TODO ...
--- }
-
--- function is_ld_inst(inst)
---    local op = bit.sub(inst, 31, 26)
---    -- if is_ld_op[op] then return true else return false end
---    return is_ld_op[op] and true or false
--- end
-
-
--- local is_st_op = {
---    [0x28]  = true, -- do_sb,		-- store byte  
---    [0x29]  = true, -- do_sh,		--   
---    [0x2B]  = true, -- do_sw,		-- store word  
---    [0x39]  = true, -- do_SWC1,		-- store word with Float Point TODO ...
--- }
-
--- function is_st_inst(inst)
---    local op = bit.sub(inst, 31, 26)
---    -- if is_ld_op[op] then return true else return false end
---    return is_st_op[op] and true or false
--- end
-
--- function ld_st_insts(bblock)
---    local ld = {}
---    local st = {}
---    ipattern = "\n0x%x%x%x%x%x%x%x%x:"
---    for inst in bblock:gmatch(ipattern) do
---       local i = tonumber(inst)
---       if is_ld_inst(i) then
--- 	 ld[#ld+1] = i
---       elseif is_st_inst(inst) then
--- 	 st[#st+1] = i
---       end
---    end
-
---    return ld, st
--- end
-
 
 local function ss_reg_v(bblk, r)
    -- print('ss_reg_v', bblk:sub(4, 13), r)
@@ -330,7 +262,7 @@ function main_loop(felf, qemu_ss_log)
 	 D('----------------------------')
 
 	 if not hss then
-	    D("farewell and thanks for all the fish...")
+	    D("finish")
 	    finish = true 
 	 end
 	 
