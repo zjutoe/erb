@@ -4,9 +4,9 @@ function bit.sub(d, i, j)
    return bit.rshift(bit.lshift(d, 31-i), 31-i+j)
 end
 
-local D = print
--- function D(...)
--- end
+-- local D = print
+function D(...)
+end
 
 local function ss_reg_v(bblk, r)
    -- print('ss_reg_v', bblk:sub(4, 13), r)
@@ -152,6 +152,8 @@ function main_loop(felf, qemu_ss_log)
 
    local List = require('list')
    local active_cpus = List.init()
+
+   local mem_access_cnt = 0
    
    local finish = false
    while not finish do
@@ -174,7 +176,7 @@ function main_loop(felf, qemu_ss_log)
       local mem_out_accum = {}
 
       -- in case the speculation fails, back off sslog to this postion
-      local h0 = hss
+      local bkbb = hss
       
       -- verify the bblks on the CPUs
       local cid = active_cpus:popleft()
@@ -190,7 +192,22 @@ function main_loop(felf, qemu_ss_log)
 	 -- 2.
 
 	 local reg_in, reg_out, memio = isa.reg_mem_rw(bb)
+	 D('reg_in')
+	 for k, v in pairs(reg_in or {}) do
+	    D('    ', k, v)
+	 end
+	 D('reg_out')
+	 for k, v in pairs(reg_out or {}) do
+	    D('    ', k, v)
+	 end
+	 D('memio')
+	 for k, v in ipairs(memio or {}) do
+	    D('    ', k, v.base, v.offset)
+	 end
+
+
 	 if reg_dependent(reg_out_accum, reg_in) then
+	    D("reg dep detected, abort CPU", cid)
 	    reg_dep = true
 	    CPU[cid].busy = false
 	    break
@@ -201,32 +218,40 @@ function main_loop(felf, qemu_ss_log)
 	 local pc = bb.addr
 	 local pcss
 
-	 local h1 = hss
+	 local bki = hss
 	 hss, tss, pcss = ss_next_i(sslog, hss)
 	 while hss do
 	    -- TODO validate_inst(sslog, hss, tss, pcss, pc)
-
+	    
 	    -- this means a branch happens, i.e. the last bblk is done
 	    if pcss ~= pc then	       
 	       next_bb_addr = pcss -- steer to the right direction
-	       hss = h1		   -- back off one instruction
+	       hss = bki	   -- back off one instruction
 	       steer = true
 	       D(string.format("%x ~= %x, steer to %x", pcss, pc, next_bb_addr))
 	       break
 	    end
 
+	    -- FIXME we assume the BB will not read and write to the
+	    -- same address, therefore each read should be considered
+	    -- as read from outside. But this may be false in theory.
 	    local v = memio[pcss]
 	    if v then
-	       local base = ss_regv(sslog:sub(hss0, tss), h0, v.base)
+	       local base = ss_regv(sslog, bki, v.base)
 	       local a = base + v.offset
+	       D(string.format('%x(%d) %x', v.offset, v.base, a), v.io)
 
 	       if v.io == 'i' then
-		  -- speculative load conflicts with previous committed store
+		  -- speculative load conflicts with previous (in this
+		  -- round) committed store
 		  if mem_out_accum[a] then
-		     hss = h0 -- back off one bblk
+		     hss = bkbb -- back off one bblk
 		     mem_dep = true
-		     D("mem dependency")
+		     D("mem dependency detected")
 		     break
+		  else
+		     mem_access_cnt = mem_access_cnt + 1
+		     print(string.format("0 %x 4 d%d", a, mem_access_cnt))
 		  end
 	       else
 		  mem_out[a] = true
@@ -238,7 +263,7 @@ function main_loop(felf, qemu_ss_log)
 
 	    -- proceed to the next inst in this bb
 	    pc = pc + 4
-	    h1 = hss		-- in case we need to back off 
+	    bki = hss		-- in case we need to back off 
 	    hss, tss, pcss = ss_next_i(sslog, hss)
 
 	    if pcss then
@@ -254,7 +279,11 @@ function main_loop(felf, qemu_ss_log)
 	 -- speculation succeeds, to commit the reg and mem output
 	 -- (i.e. write & store)
 	 for k, v in pairs(reg_out) do reg_out_accum[k] = v end
-	 for k, v in pairs(mem_out) do mem_out_accum[k] = v end
+	 for k, v in pairs(mem_out) do 
+	    mem_out_accum[k] = v 
+	    mem_access_cnt = mem_access_cnt + 1
+	    print(string.format("1 %x 4 d%d", k, mem_access_cnt))
+	 end
 
 	 -- TODO count the clocks, see how much performance we
 	 -- accelerated
@@ -285,7 +314,8 @@ function main_loop(felf, qemu_ss_log)
 	 -- ld/st conflicts to validate speculation, i.e. we only
 	 -- speculate regarding mem rd/st (for those the addr we can't
 	 -- decide before running)
-	 
+
+	 bkbb = hss
 	 cid = active_cpus:popleft()
       end  -- while cid and not finish do
 

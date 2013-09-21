@@ -2,10 +2,14 @@ local bit    = require("bit")
 local ipairs = ipairs
 local pairs  = pairs
 
-local print = print
 local string = string
 
+-- local D = print
+
 module(...)
+
+local function D(...)
+end
 
 local _m = {}
 
@@ -186,12 +190,12 @@ function _m.reg_mem_rw(bblk)
       end
    end
 
-   print(string.format("examine reg mem I/O 0x%x -> 0x%x", bblk.addr, bblk.tail))
+   D(string.format("examine reg mem I/O 0x%x -> 0x%x", bblk.addr, bblk.tail))
    
    for addr=bblk.addr, bblk.tail, 4 do
       local inst = bblk[addr]
-      print(string.format('    0x%x 0x%x', addr, inst))
       local op, rs, rt, rd, sa, func, imm = decode(inst)
+      D(string.format('    a=0x%x i=0x%08x', addr, inst))
 
       if op == 0 then
 	 if rtype[func] then
@@ -240,11 +244,13 @@ function _m.reg_mem_rw(bblk)
       elseif ltype[op] then
 	 add_read{rs}
 	 add_write{rt}
-	 memio[#memio + 1] = {pc=addr, io='i', base=rs, offset=imm}
+	 -- memio[#memio + 1] = {pc=addr, io='i', base=rs, offset=imm}
+	 memio[addr] = {io='i', base=rs, offset=imm}
 
       elseif stype[op] then
 	 add_read{rs, rt}
-	 memio[#memio + 1] = {pc=addr, io='o', base=rs, offset=imm}
+	 -- memio[#memio + 1] = {pc=addr, io='o', base=rs, offset=imm}
+	 memio[addr] = {io='o', base=rs, offset=imm}
 
       elseif op == 0x1C then	-- SPECIAL2
 	 if special2[func] then
