@@ -10,14 +10,16 @@ Dinero IV cache simulator
 usage
 =====
 
-# get the luaelf (git@github.com:zjutoe/luaelf.git), put it in the
-   current folder
+* get the luaelf
 
-# setup the environment
+  check out from (git@github.com:zjutoe/luaelf.git), put it in the
+  current folder
+
+* setup the environment
 
    $ source setenv.sh
 
-# run the main.lua with luajit
+* run the main.lua with luajit
 
    $ luajit main.lua
 
