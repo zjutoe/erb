@@ -4,6 +4,10 @@ function bit.sub(d, i, j)
    return bit.rshift(bit.lshift(d, 31-i), 31-i+j)
 end
 
+-- function D(...)
+-- end
+
+local D = print
 
 -- main loop logic:
 
@@ -86,13 +90,13 @@ local function ss_reg_v(bblk, r)
    local stride2 = 12		-- width of a register
 
    local reg_h = init + math.floor(r/4) * stride1 + lead + (r%4 * stride2)
-   -- print('ss_reg_v', reg_h, bblk:sub(reg_h+3, reg_h+11))
+   -- D('ss_reg_v', reg_h, bblk:sub(reg_h+3, reg_h+11))
    return tonumber(bblk:sub(reg_h+3, reg_h+11), 16)
 end
 
 -- next instruction from the singlestep trace
 local function ss_next_inst(sslog, h, pc)
-   -- print(string.format('searching for 0x%x ... ', pc))
+   -- D(string.format('searching for 0x%x ... ', pc))
 
    local in_asm = "\nIN: .-\n0x.-\n\n"
    local h, t = sslog:find(in_asm, h)
@@ -101,14 +105,14 @@ local function ss_next_inst(sslog, h, pc)
    while h do
       -- h = h - 2075
       h0 = h - 2014
-      print(string.format("checking %x %x:", h, t), sslog:sub(h+6, h+15))
+      D(string.format("checking %x %x:", h, t), sslog:sub(h+6, h+15))
       -- found the corresponding instruction instance in single-step trace
       if (pc == nil) or (tonumber(sslog:sub(h+3, h+12)) == pc) then break end
       -- h, t = sslog:find(bbpattern, t-3)
       h, t = sslog:find(in_asm, t)
    end
-   print('Ding!\n')
-   print(sslog:sub(h0, t))
+   D('Ding!\n')
+   D(sslog:sub(h0, t))
    return h0, h, t
 end
 
@@ -184,7 +188,7 @@ local function bb_try(cpus, mem, bblk, next_bb_addr)
    local bbs = bblk.get_bblocks(mem, next_bb_addr, #cpus)
    -- TODO should have a better schedule algorithm
    for i, v in ipairs(cpus) do
-      print('cpu', v, 'bblock', string.format("0x%x", bbs[i].addr))
+      D('cpu', v, 'bblock', string.format("0x%x", bbs[i].addr))
       CPU:try(v, bbs[i])
    end
 end
@@ -199,7 +203,7 @@ end
 local mips = require('mips')
 local isa = mips.init()
 
-function main_loop(felf, qemu_bb_log, qemu_ss_log)
+function main_loop(felf, qemu_ss_log)
    
    -- init the elf loader and bblock parser
    local loadelf = require 'luaelf/loadelf'
@@ -208,13 +212,6 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
    local bblock = require ("bblock")
    local bblk = bblock.init()
    local next_bb_addr = mem.e_entry	-- the execution entry address
-
-   local f_bb_log = io.input(qemu_bb_log)
-   local bblog = f_bb_log:read("*all")
-   local bbpattern = "pc=.-pc="
-   local in_asm = "\nIN: .-\n0x.-\n\n"
-   local h
-   local t = 4			-- 4-3=1, it's the pre-offset for the 2nd "pc=" in the bbpattern
 
    local f_ss_log = io.input(qemu_ss_log)
    local sslog = f_ss_log:read("*all")   
@@ -227,7 +224,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
    local finish = false
    while not finish do
       local cpus = CPU:idle_cpus()
-      print(#cpus, "CPUs are idle")
+      D(#cpus, "CPUs are idle")
 
       -- hss, tss, pcss = ss_next_i(sslog, tss)
 	 
@@ -282,7 +279,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	       next_bb_addr = pcss -- steer to the right direction
 	       hss = h1		   -- back off one instruction
 	       steer = true
-	       print(string.format("%x ~= %x, steer to %x", pcss, pc, next_bb_addr))
+	       D(string.format("%x ~= %x, steer to %x", pcss, pc, next_bb_addr))
 	       break
 	    end
 
@@ -296,7 +293,7 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 		  if mem_out_accum[a] then
 		     hss = h0 -- back off one bblk
 		     mem_dep = true
-		     print("mem dependency")
+		     D("mem dependency")
 		     break
 		  end
 	       else
@@ -313,26 +310,14 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 	    hss, tss, pcss = ss_next_i(sslog, hss)
 
 	    if pcss then
-	       print(string.format('pc=%x, pcss=%x', pc, pcss))
+	       D(string.format('pc=%x, pcss=%x', pc, pcss))
 	    end
 	 end  -- hss
-
-	 --[[
-	 if steer then
-	    -- the speculation went a wrong direction
-	    print("wrong branch speculation, steer to", string.format("0x%x", next_bb_addr))
-	    print('----------------------------')
-	 elseif mem_dep then
-	    print("mem dependency")
-	    print('----------------------------')
-	    break
-	 end
-	 --]]
 
 	 CPU[cid].busy = false
 
 	 -- cannot commit
-	 if mem_dep then break end
+	 if mem_dep or steer then break end
 
 	 -- speculation succeeds, to commit the reg and mem output
 	 -- (i.e. write & store)
@@ -341,11 +326,13 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 
 	 -- TODO count the clocks, see how much performance we
 	 -- accelerated
-	 print(string.format("0x%x", bb.addr), 'commit on CPU', cid)
-	 print('----------------------------')
+	 D(string.format("0x%x", bb.addr), 'commit on CPU', cid)
+	 D('----------------------------')
 
-	 -- discard following CPUs, but should commit this one
-	 if steer then break end
+	 if not hss then
+	    D("farewell and thanks for all the fish...")
+	    finish = true 
+	 end
 	 
 	 -- TODO: treat the bblock as a blackbox, actually we don't
 	 -- care whether the input is correct, what we care is its
@@ -383,4 +370,4 @@ function main_loop(felf, qemu_bb_log, qemu_ss_log)
 end
 
 -- main_loop(arg[1], arg[2], arg[3])
-main_loop('test/hello-mips.S', 'test/qemu-bb.log', 'test/qemu-ss.log')
+main_loop('test/hello-mips.S', 'test/qemu-ss.log')
