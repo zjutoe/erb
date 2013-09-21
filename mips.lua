@@ -190,7 +190,7 @@ function _m.reg_mem_rw(bblk)
    
    for addr=bblk.addr, bblk.tail, 4 do
       local inst = bblk[addr]
-      print(string.format('0x%x 0x%x', addr, inst))
+      print(string.format('    0x%x 0x%x', addr, inst))
       local op, rs, rt, rd, sa, func, imm = decode(inst)
 
       if op == 0 then
