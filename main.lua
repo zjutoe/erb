@@ -251,7 +251,7 @@ function main_loop(felf, qemu_ss_log)
 		     break
 		  else
 		     mem_access_cnt = mem_access_cnt + 1
-		     print(string.format("0 %x 4 d%d", a, mem_access_cnt))
+		     print(string.format("%d 0 %x 4 d%d", cid, a, mem_access_cnt))
 		  end
 	       else
 		  mem_out[a] = true
@@ -282,7 +282,7 @@ function main_loop(felf, qemu_ss_log)
 	 for k, v in pairs(mem_out) do 
 	    mem_out_accum[k] = v 
 	    mem_access_cnt = mem_access_cnt + 1
-	    print(string.format("1 %x 4 d%d", k, mem_access_cnt))
+	    print(string.format("%d 1 %x 4 d%d", cid, k, mem_access_cnt))
 	 end
 
 	 -- TODO count the clocks, see how much performance we
