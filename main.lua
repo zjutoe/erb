@@ -331,5 +331,5 @@ function main_loop(felf, qemu_ss_log)
 
 end
 
--- main_loop(arg[1], arg[2], arg[3])
-main_loop('test/hello-mips.S', 'test/qemu-ss.log')
+main_loop(arg[1], arg[2])
+--main_loop('test/hello-mips.S', 'test/qemu-ss.log')
