@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export "LUA_PATH=$PWD/../../?.lua;;"
+luajit ../../main.lua bin.mips qemu-ss.log > mem-tr.log
