@@ -8,6 +8,10 @@ end
 function D(...)
 end
 
+--local LOG = print
+function LOG(...)
+end
+
 local function ss_reg_v(bblk, r)
    -- print('ss_reg_v', bblk:sub(4, 13), r)
    if r == 34 then		-- HI
@@ -251,7 +255,7 @@ function main_loop(felf, qemu_ss_log)
 		     break
 		  else
 		     mem_access_cnt = mem_access_cnt + 1
-		     print(string.format("%d 0 %x 4 d%d", cid, a, mem_access_cnt))
+		     LOG(string.format("%d 0 %x 4 d%d", cid, a, mem_access_cnt))
 		  end
 	       else
 		  mem_out[a] = true
@@ -282,7 +286,7 @@ function main_loop(felf, qemu_ss_log)
 	 for k, v in pairs(mem_out) do 
 	    mem_out_accum[k] = v 
 	    mem_access_cnt = mem_access_cnt + 1
-	    print(string.format("%d 1 %x 4 d%d", cid, k, mem_access_cnt))
+	    LOG(string.format("%d 1 %x 4 d%d", cid, k, mem_access_cnt))
 	 end
 
 	 -- TODO count the clocks, see how much performance we
