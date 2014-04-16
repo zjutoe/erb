@@ -23,3 +23,11 @@ usage
 
    $ luajit main.lua
 
+Tips
+====
+
+* to get a full trace dump from Qemu execution
+
+  $ qemu-mips -singlestep -d a.out
+
+  Then examine the qemu.misp.log in the current dir.
